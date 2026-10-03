@@ -1,0 +1,445 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String          @id @default(cuid())
+  fullName        String
+  email           String          @unique
+  phoneNumber     String?         @unique
+  userName        String?         @unique
+  type            String          @default("user")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  assessments     Assessment[]
+  cases           Case[]
+  claims          Claim[]
+  discussions     Discussion[]
+  evidence        Evidence[]
+  opinions        Opinion[]
+  sessions        Session[]
+  sources         Source[]
+  userAddress     UserAddress?
+  userCredential  UserCredential?
+  userProfile     UserProfile?
+  reportsFiled    Report[]        @relation("ReportedBy")
+  reportsReviewed Report[]        @relation("ReviewedBy")
+
+  @@map("users")
+}
+
+model Session {
+  id             String    @id @default(cuid())
+  userId         String
+  refreshTokenId String    @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model UserAddress {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  address   String
+  city      String
+  state     String
+  zipCode   String
+  country   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("user_addresses")
+}
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  profilePicture String?
+  bio            String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@map("user_profiles")
+}
+
+model UserCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  password     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  refreshToken String?
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("user_credentials")
+}
+
+model Case {
+  id          String         @id @default(cuid())
+  title       String
+  titleHtml   String         @default("") @db.Text
+  location    String
+  authorId    String
+  caseStatus  String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  medias      CaseMedia[]
+  author      User           @relation(fields: [authorId], references: [id])
+  claims      Claim[]
+  discussions Discussion[]
+  evidence    CaseEvidence[]
+  sources     CaseSource[]
+  tags        CaseTag[]
+
+  @@index([authorId])
+  @@map("cases")
+}
+
+model Claim {
+  id        String @id @default(cuid())
+  title     String
+
+  claimType   String?
+  caseId      String
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  claimStatus ClaimStatus     @default(SHOW)
+  assessments Assessment[]
+  evidence    ClaimEvidence[]
+  medias      ClaimMedia[]
+  sources     ClaimSource[]
+  case        Case            @relation(fields: [caseId], references: [id])
+  creator     User            @relation(fields: [createdBy], references: [id])
+  discussions Discussion[]
+
+  @@index([caseId])
+  @@index([createdBy])
+  @@map("claims")
+}
+
+model ClaimMedia {
+  claimId String
+  mediaId String
+  order   Int
+  claim   Claim  @relation(fields: [claimId], references: [id])
+  media   Media  @relation(fields: [mediaId], references: [id])
+
+  @@id([claimId, mediaId])
+  @@map("claim_medias")
+}
+
+model Evidence {
+  id          String          @id @default(cuid())
+  title       String
+  type        String
+  submittedBy String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  claims      ClaimEvidence[]
+  cases       CaseEvidence[]
+  submitter   User            @relation(fields: [submittedBy], references: [id])
+  medias      EvidenceMedia[]
+
+  @@index([submittedBy])
+  @@map("evidence")
+}
+
+model ClaimEvidence {
+  claimId      String
+  evidenceId   String
+  relationship String
+  createdAt    DateTime @default(now())
+  claim        Claim    @relation(fields: [claimId], references: [id])
+  evidence     Evidence @relation(fields: [evidenceId], references: [id])
+
+  @@id([claimId, evidenceId])
+  @@index([evidenceId])
+  @@map("claim_evidence")
+}
+
+model Media {
+  id             String          @id @default(cuid())
+  url            String
+  type           String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  caseMedias     CaseMedia[]
+  claimMedias    ClaimMedia[]
+  evidenceMedias EvidenceMedia[]
+  opinionMedias  OpinionMedia[]
+
+  @@map("medias")
+}
+
+model CaseMedia {
+  caseId  String
+  mediaId String
+  order   Int
+  case    Case   @relation(fields: [caseId], references: [id])
+  media   Media  @relation(fields: [mediaId], references: [id])
+
+  @@id([caseId, mediaId])
+  @@map("case_medias")
+}
+
+model EvidenceMedia {
+  evidenceId String
+  mediaId    String
+  order      Int
+  evidence   Evidence @relation(fields: [evidenceId], references: [id])
+  media      Media    @relation(fields: [mediaId], references: [id])
+
+  @@id([evidenceId, mediaId])
+  @@index([mediaId])
+  @@map("evidence_medias")
+}
+
+model Source {
+  id                 String          @id @default(cuid())
+  title              String
+  sourceLocation     String
+  sourceDate         DateTime?
+  externalSourceType String
+  externalSourceName String
+  externalLinks      String[]
+  createdBy          String
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  claims             ClaimSource[]
+  cases              CaseSource[]
+  opinions           OpinionSource[]
+  creator            User            @relation(fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@map("sources")
+}
+
+model ClaimSource {
+  claimId      String
+  sourceId     String
+  relationship String
+  createdAt    DateTime @default(now())
+  claim        Claim    @relation(fields: [claimId], references: [id])
+  source       Source   @relation(fields: [sourceId], references: [id])
+
+  @@id([claimId, sourceId])
+  @@index([sourceId])
+  @@map("claim_sources")
+}
+
+model CaseEvidence {
+  caseId       String
+  evidenceId   String
+  relationship String
+  createdAt    DateTime @default(now())
+  case         Case     @relation(fields: [caseId], references: [id])
+  evidence     Evidence @relation(fields: [evidenceId], references: [id])
+
+  @@id([caseId, evidenceId])
+  @@index([evidenceId])
+  @@map("case_evidence")
+}
+
+model CaseSource {
+  caseId       String
+  sourceId     String
+  relationship String
+  createdAt    DateTime @default(now())
+  case         Case     @relation(fields: [caseId], references: [id])
+  source       Source   @relation(fields: [sourceId], references: [id])
+
+  @@id([caseId, sourceId])
+  @@index([sourceId])
+  @@map("case_sources")
+}
+
+model Assessment {
+  id          String          @id @default(cuid())
+  reason      String?
+  claimId     String
+  userId      String
+  assessment  AssessmentValue
+  isAnonymous Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  claim       Claim           @relation(fields: [claimId], references: [id])
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@unique([claimId, userId])
+  @@index([userId])
+  @@map("assessment")
+}
+
+model Discussion {
+  id        String       @id @default(cuid())
+  content   String
+  userId    String
+  parentId  String?
+  caseId    String
+  claimId   String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  case      Case         @relation(fields: [caseId], references: [id])
+  claim     Claim?       @relation(fields: [claimId], references: [id])
+  parent    Discussion?  @relation("DiscussionReplies", fields: [parentId], references: [id])
+  replies   Discussion[] @relation("DiscussionReplies")
+  user      User         @relation(fields: [userId], references: [id])
+
+  @@index([caseId])
+  @@index([claimId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("discussion")
+}
+
+model Opinion {
+  id         String          @id @default(cuid())
+  content    String
+  value      String?
+  targetType TargetType
+  targetId   String
+  authorId   String
+  parentId   String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  medias     OpinionMedia[]
+  sources    OpinionSource[]
+  author     User            @relation(fields: [authorId], references: [id])
+  parent     Opinion?        @relation("OpinionReplies", fields: [parentId], references: [id])
+  replies    Opinion[]       @relation("OpinionReplies")
+
+  @@index([targetType, targetId])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("opinions")
+}
+
+model OpinionMedia {
+  opinionId String
+  mediaId   String
+  order     Int
+  media     Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  opinion   Opinion @relation(fields: [opinionId], references: [id], onDelete: Cascade)
+
+  @@id([opinionId, mediaId])
+  @@map("opinion_medias")
+}
+
+model OpinionSource {
+  opinionId String
+  sourceId  String
+  createdAt DateTime @default(now())
+  opinion   Opinion  @relation(fields: [opinionId], references: [id], onDelete: Cascade)
+  source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([opinionId, sourceId])
+  @@map("opinion_sources")
+}
+
+enum ClaimStatus {
+  HIDDEN
+  SHOW
+  BLOCKED
+}
+
+enum AssessmentValue {
+  SUPPORTED
+  PARTIALLY_SUPPORTED
+  INSUFFICIENT_EVIDENCE
+  CONTRADICTED
+  DISPUTED
+}
+
+enum TargetType {
+  CASE
+  CLAIM
+  EVIDENCE
+  SOURCE
+  OPINION
+  DISCUSSION
+  MEDIA
+}
+
+model Report {
+  id          String           @id @default(cuid())
+  targetType  TargetType
+  targetId    String
+  reason      ReportReason
+  description String?
+  reportedBy  String
+  status      ReportStatus     @default(PENDING)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  resolution  ReportResolution @default(NO_ACTION)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  reporter User  @relation("ReportedBy", fields: [reportedBy], references: [id])
+  reviewer User? @relation("ReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([status])
+  @@map("reports")
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  ABUSIVE_CONTENT
+  MISLEADING_INFORMATION
+  COPYRIGHT
+  PRIVACY
+  INAPPROPRIATE_CONTENT
+  DUPLICATE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportResolution {
+  NO_ACTION
+  HIDE_CONTENT
+  RESTORE_CONTENT
+  WARN_USER
+  REMOVE_CONTENT
+}
+
+model Tag {
+  id             String    @id @default(cuid())
+  name           String
+  normalizedName String    @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  cases          CaseTag[]
+
+  @@map("tags")
+}
+
+model CaseTag {
+  caseId    String
+  tagId     String
+  createdAt DateTime @default(now())
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, tagId])
+  @@index([tagId])
+  @@map("case_tags")
+}

@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const user_route_1 = __importDefault(require("../src/modules/user/user.route"));
+const case_route_1 = __importDefault(require("../src/modules/case/case.route"));
+const auth_route_1 = __importDefault(require("../src/modules/auth/auth.route"));
+const opinion_route_1 = __importDefault(require("../src/modules/opinion/opinion.route"));
+const tag_route_1 = require("../src/modules/tag/tag.route");
+const media_route_1 = __importDefault(require("../src/modules/media/media.route"));
+const apiRoutes = (0, express_1.Router)();
+apiRoutes.use('/user', user_route_1.default);
+apiRoutes.use('/case', case_route_1.default);
+apiRoutes.use('/auth', auth_route_1.default);
+apiRoutes.use('/opinions', opinion_route_1.default);
+apiRoutes.use('/tags', tag_route_1.tagRoutes);
+apiRoutes.use('/media', media_route_1.default);
+exports.default = apiRoutes;
