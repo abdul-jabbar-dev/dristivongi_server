@@ -42,6 +42,11 @@ caseRoute.get(
     caseController.getCaseDetails
 );
 
+caseRoute.post(
+    "/case_view/:id",
+    caseController.recordCaseView
+);
+
 
 /* =========================
    CREATE CLAIM
@@ -104,6 +109,17 @@ caseRoute.get(
     // If the frontend needs to know its own position, we might need an optional auth.
     // I'll just skip the auth middleware here. The controller will just not have req.user if no token.
     caseController.getAssessments
+);
+
+/* =========================
+   CASE REACTIONS
+========================= */
+
+caseRoute.post(
+    "/:caseId/reaction",
+    auth,
+    validateRequest(caseZod.submitCaseReactionSchema),
+    caseController.submitCaseReaction
 );
 
 export default caseRoute;

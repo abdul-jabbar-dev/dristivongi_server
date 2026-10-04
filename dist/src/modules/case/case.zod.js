@@ -58,10 +58,14 @@ const submitAssessmentSchema = zod_1.z.object({
     assessment: zod_1.z.enum(["SUPPORTED", "PARTIALLY_SUPPORTED", "INSUFFICIENT_EVIDENCE", "CONTRADICTED", "DISPUTED"]),
     isAnonymous: zod_1.z.boolean().default(false),
 });
+const submitCaseReactionSchema = zod_1.z.object({
+    value: zod_1.z.enum(["SUPPORT", "OPPOSE", "NONE"]),
+});
 const caseZod = {
     createCaseSchema,
     createClaimSchema,
     addEvidenceSchema,
     submitAssessmentSchema,
+    submitCaseReactionSchema,
 };
 exports.default = caseZod;

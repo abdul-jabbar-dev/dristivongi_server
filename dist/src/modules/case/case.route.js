@@ -23,6 +23,7 @@ caseRoute.get("/get_case/news_feed", case_controller_1.default.getNewsFeed);
    CASE DETAILS
 ========================= */
 caseRoute.get("/get_case/:id", case_controller_1.default.getCaseDetails);
+caseRoute.post("/case_view/:id", case_controller_1.default.recordCaseView);
 /* =========================
    CREATE CLAIM
 ========================= */
@@ -49,4 +50,8 @@ caseRoute.get("/:claimId/assessment",
 // If the frontend needs to know its own position, we might need an optional auth.
 // I'll just skip the auth middleware here. The controller will just not have req.user if no token.
 case_controller_1.default.getAssessments);
+/* =========================
+   CASE REACTIONS
+========================= */
+caseRoute.post("/:caseId/reaction", auth_1.default, (0, validateRequest_1.default)(case_zod_1.default.submitCaseReactionSchema), case_controller_1.default.submitCaseReaction);
 exports.default = caseRoute;

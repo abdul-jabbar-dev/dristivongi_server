@@ -55,11 +55,17 @@ const logout = async (req, res) => {
         if (refreshToken) {
             await auth_service_1.default.logout(refreshToken);
         }
-        res.clearCookie('refreshToken', { path: '/' });
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/'
+        };
+        res.clearCookie('refreshToken', cookieOptions);
         response_1.default.send(res, null, "Logged out successfully", 200);
     }
     catch (error) {
-        res.clearCookie('refreshToken', { path: '/' });
+        res.clearCookie('refreshToken', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' });
         response_1.default.send(res, null, "Logged out safely", 200);
     }
 };

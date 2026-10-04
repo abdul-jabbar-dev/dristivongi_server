@@ -1,16 +1,15 @@
-import { db } from "../../../lib/prisma";
-import { EvidenceValidationValue } from "@prisma/client";
-
-const submitValidation = async (evidenceId: string, userId: string, value: EvidenceValidationValue | "NONE") => {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const prisma_1 = require("../../../lib/prisma");
+const submitValidation = async (evidenceId, userId, value) => {
     // Check if evidence exists
-    const evidence = await db.evidence.findUnique({ where: { id: evidenceId } });
+    const evidence = await prisma_1.db.evidence.findUnique({ where: { id: evidenceId } });
     if (!evidence) {
         throw new Error("Evidence not found"); // Handled by global error handler
     }
-
     if (value === "NONE") {
         try {
-            await db.evidenceValidation.delete({
+            await prisma_1.db.evidenceValidation.delete({
                 where: {
                     evidenceId_userId: {
                         evidenceId,
@@ -18,11 +17,13 @@ const submitValidation = async (evidenceId: string, userId: string, value: Evide
                     }
                 }
             });
-        } catch (e) {
+        }
+        catch (e) {
             // Ignore if record doesn't exist
         }
-    } else {
-        const validation = await db.evidenceValidation.upsert({
+    }
+    else {
+        const validation = await prisma_1.db.evidenceValidation.upsert({
             where: {
                 evidenceId_userId: {
                     evidenceId,
@@ -39,31 +40,27 @@ const submitValidation = async (evidenceId: string, userId: string, value: Evide
             }
         });
     }
-
     return getValidationSummary(evidenceId, userId);
 };
-
-const getValidationSummary = async (evidenceId: string, userId: string | null) => {
-    const validations = await db.evidenceValidation.findMany({
+const getValidationSummary = async (evidenceId, userId) => {
+    const validations = await prisma_1.db.evidenceValidation.findMany({
         where: { evidenceId }
     });
-
     let valid = 0;
     let invalid = 0;
-    let currentUserVote: EvidenceValidationValue | null = null;
-
+    let currentUserVote = null;
     for (const v of validations) {
-        if (v.value === "VALID") valid++;
-        if (v.value === "INVALID") invalid++;
+        if (v.value === "VALID")
+            valid++;
+        if (v.value === "INVALID")
+            invalid++;
         if (userId && v.userId === userId) {
             currentUserVote = v.value;
         }
     }
-
     const total = valid + invalid;
     const validPercentage = total === 0 ? 0 : Math.round((valid / total) * 100);
     const invalidPercentage = total === 0 ? 0 : Math.round((invalid / total) * 100);
-
     return {
         valid,
         invalid,
@@ -73,8 +70,7 @@ const getValidationSummary = async (evidenceId: string, userId: string | null) =
         currentUserVote
     };
 };
-
-export default {
+exports.default = {
     submitValidation,
     getValidationSummary
 };

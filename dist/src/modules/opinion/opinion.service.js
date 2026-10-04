@@ -7,6 +7,9 @@ const prisma_1 = require("../../../lib/prisma");
 const media_service_1 = __importDefault(require("../media/media.service"));
 const createOpinion = async (payload, authorId, files) => {
     const { targetType, targetId, content, value, parentId, sources } = payload;
+    if (!content?.trim() && (!files || files.length === 0) && (!sources || sources.length === 0)) {
+        throw new Error("Comment must contain either text, files, or links");
+    }
     // 1. Verify Target Exists
     let targetExists = false;
     if (targetType === "CASE") {

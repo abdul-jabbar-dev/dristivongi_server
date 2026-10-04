@@ -27,7 +27,26 @@ const createNewCase = async (req, res) => {
 const getNewsFeed = async (req, res) => {
     try {
         const tag = req.query.tag;
-        const result = await case_service_1.default.getNewsFeed(tag);
+        const author = req.query.author;
+        let currentUserId = undefined;
+        const token = req.headers.authorization;
+        if (token && token.startsWith("Bearer ")) {
+            const accessToken = token.split(" ")[1];
+            if (accessToken) {
+                try {
+                    const jwtService = require("../../../lib/jwt").default;
+                    const decoded = jwtService.verifyToken(accessToken);
+                    if (decoded && decoded.type === "access") {
+                        currentUserId = decoded.id;
+                    }
+                }
+                catch (e) {
+                    // ignore
+                }
+            }
+        }
+        const sort = req.query.sort;
+        const result = await case_service_1.default.getNewsFeed(tag, author, currentUserId, sort);
         response_1.default.send(res, result, "News feed fetched successfully", 200);
     }
     catch (error) {
@@ -40,7 +59,24 @@ const getNewsFeed = async (req, res) => {
 const getCaseDetails = async (req, res) => {
     try {
         const id = req.params.id;
-        const result = await case_service_1.default.getCaseDetails(id);
+        let authorId = undefined;
+        const token = req.headers.authorization;
+        if (token && token.startsWith("Bearer ")) {
+            const accessToken = token.split(" ")[1];
+            if (accessToken) {
+                try {
+                    const jwtService = require("../../../lib/jwt").default;
+                    const decoded = jwtService.verifyToken(accessToken);
+                    if (decoded && decoded.type === "access") {
+                        authorId = decoded.id;
+                    }
+                }
+                catch (e) {
+                    // ignore
+                }
+            }
+        }
+        const result = await case_service_1.default.getCaseDetails(id, authorId);
         response_1.default.send(res, result, "Case details fetched successfully", 200);
     }
     catch (error) {
@@ -141,6 +177,44 @@ const getAssessments = async (req, res) => {
     }
 };
 /* =========================
+   CASE REACTIONS
+========================= */
+const submitCaseReaction = async (req, res) => {
+    try {
+        const caseId = req.params.caseId;
+        const authorId = req.user.id;
+        const reactionData = req.body;
+        const result = await case_service_1.default.submitCaseReaction(caseId, authorId, reactionData);
+        response_1.default.send(res, result, "Reaction submitted successfully", 200);
+    }
+    catch (error) {
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+/* =========================
+   RECORD CASE VIEW
+========================================================= */
+const recordCaseView = async (req, res) => {
+    try {
+        const caseId = req.params.id;
+        let userId = undefined;
+        let visitorKey = undefined;
+        if (req.user && req.user.id) {
+            userId = req.user.id;
+        }
+        else {
+            const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+            const ua = req.headers['user-agent'] || 'unknown';
+            visitorKey = Buffer.from(`${ip}-${ua}`).toString('base64');
+        }
+        const result = await case_service_1.default.recordCaseView(caseId, userId, visitorKey);
+        response_1.default.send(res, result, "View recorded successfully", 200);
+    }
+    catch (error) {
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+/* =========================
    CONTROLLER OBJECT
 ========================= */
 const caseController = {
@@ -152,5 +226,7 @@ const caseController = {
     addCaseEvidence,
     submitAssessment,
     getAssessments,
+    submitCaseReaction,
+    recordCaseView,
 };
 exports.default = caseController;

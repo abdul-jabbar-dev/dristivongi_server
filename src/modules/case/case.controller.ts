@@ -61,12 +61,32 @@ const getNewsFeed = async (
     req: Request,
     res: Response
 ) => {
-
     try {
         const tag = req.query.tag as string | undefined;
         const author = req.query.author as string | undefined;
+        let currentUserId: string | undefined = undefined;
+
+        const token = req.headers.authorization;
+        if (token && token.startsWith("Bearer ")) {
+            const accessToken = token.split(" ")[1];
+            if (accessToken) {
+                try {
+                    const jwtService = require("../../../lib/jwt").default;
+                    const decoded = jwtService.verifyToken(accessToken) as any;
+                    if (decoded && decoded.type === "access") {
+                        currentUserId = decoded.id;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
+        const sort = req.query.sort as string | undefined;
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+
         const result =
-            await caseService.getNewsFeed(tag, author);
+            await caseService.getNewsFeed(tag, author, currentUserId, sort, page, limit);
 
 
         Res.send(
@@ -92,14 +112,30 @@ const getCaseDetails = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const id = req.params.id;
+
+        let authorId: string | undefined = undefined;
+
+        const token = req.headers.authorization;
+        if (token && token.startsWith("Bearer ")) {
+            const accessToken = token.split(" ")[1];
+            if (accessToken) {
+                try {
+                    const jwtService = require("../../../lib/jwt").default;
+                    const decoded = jwtService.verifyToken(accessToken) as any;
+                    if (decoded && decoded.type === "access") {
+                        authorId = decoded.id;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
 
 
         const result =
-            await caseService.getCaseDetails(id);
+            await caseService.getCaseDetails(id, authorId);
 
 
         Res.send(
@@ -266,6 +302,61 @@ const getAssessments = async (req: Request, res: Response) => {
 };
 
 /* =========================
+   CASE REACTIONS
+========================= */
+
+const submitCaseReaction = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const caseId = req.params.caseId;
+        const authorId = req.user.id;
+        const reactionData = req.body;
+
+        const result = await caseService.submitCaseReaction(
+            caseId,
+            authorId,
+            reactionData
+        );
+
+        Res.send(
+            res,
+            result,
+            "Reaction submitted successfully",
+            200
+        );
+    } catch (error) {
+        GlobalError(res, error);
+    }
+};
+
+/* =========================
+   RECORD CASE VIEW
+========================================================= */
+
+const recordCaseView = async (req: Request, res: Response) => {
+    try {
+        const caseId = req.params.id;
+        let userId: string | undefined = undefined;
+        let visitorKey: string | undefined = undefined;
+        
+        if (req.user && req.user.id) {
+            userId = req.user.id;
+        } else {
+            const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+            const ua = req.headers['user-agent'] || 'unknown';
+            visitorKey = Buffer.from(`${ip}-${ua}`).toString('base64');
+        }
+
+        const result = await caseService.recordCaseView(caseId, userId, visitorKey);
+        Res.send(res, result, "View recorded successfully", 200);
+    } catch (error) {
+        GlobalError(res, error);
+    }
+};
+
+/* =========================
    CONTROLLER OBJECT
 ========================= */
 
@@ -278,6 +369,8 @@ const caseController = {
     addCaseEvidence,
     submitAssessment,
     getAssessments,
+    submitCaseReaction,
+    recordCaseView,
 };
 
 export default caseController;

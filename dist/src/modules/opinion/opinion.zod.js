@@ -12,7 +12,7 @@ exports.createOpinionSchema = zod_1.z.object({
     body: zod_1.z.object({
         targetType: zod_1.z.enum(["CASE", "CLAIM", "EVIDENCE", "SOURCE"]),
         targetId: zod_1.z.string().min(1, "Target ID is required"),
-        content: zod_1.z.string().trim().min(3, "Content must be at least 3 characters long"),
+        content: zod_1.z.string().optional().default(""),
         value: zod_1.z.string().optional(),
         parentId: zod_1.z.string().optional(),
         sources: zod_1.z.array(zod_1.z.object({

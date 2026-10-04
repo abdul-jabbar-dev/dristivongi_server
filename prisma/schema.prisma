@@ -7,28 +7,30 @@ datasource db {
 }
 
 model User {
-  id              String          @id @default(cuid())
-  fullName        String
-  email           String          @unique
-  phoneNumber     String?         @unique
-  userName        String?         @unique
-  type            String          @default("user")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  assessments     Assessment[]
-  cases           Case[]
-  claims          Claim[]
-  discussions     Discussion[]
-  evidence        Evidence[]
-  opinions        Opinion[]
-  sessions        Session[]
-  sources         Source[]
+  id                  String               @id @default(cuid())
+  fullName            String
+  email               String               @unique
+  phoneNumber         String?              @unique
+  userName            String?              @unique
+  type                String               @default("user")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  assessments         Assessment[]
+  cases               Case[]
+  claims              Claim[]
+  discussions         Discussion[]
+  evidence            Evidence[]
+  opinions            Opinion[]
+  sessions            Session[]
+  sources             Source[]
   evidenceValidations EvidenceValidation[]
-  userAddress     UserAddress?
-  userCredential  UserCredential?
-  userProfile     UserProfile?
-  reportsFiled    Report[]        @relation("ReportedBy")
-  reportsReviewed Report[]        @relation("ReviewedBy")
+  userAddress         UserAddress?
+  userCredential      UserCredential?
+  userProfile         UserProfile?
+  reportsFiled        Report[]             @relation("ReportedBy")
+  reportsReviewed     Report[]             @relation("ReviewedBy")
+  caseReactions       CaseReaction[]
+  caseViews           CaseView[]
 
   @@map("users")
 }
@@ -90,29 +92,47 @@ model UserCredential {
 }
 
 model Case {
-  id          String         @id @default(cuid())
-  title       String
-  titleHtml   String         @default("") @db.Text
-  location    String
-  authorId    String
-  caseStatus  String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  medias      CaseMedia[]
-  author      User           @relation(fields: [authorId], references: [id])
-  claims      Claim[]
-  discussions Discussion[]
-  evidence    CaseEvidence[]
-  sources     CaseSource[]
-  tags        CaseTag[]
+  id            String         @id @default(cuid())
+  title         String
+  titleHtml     String         @default("") @db.Text
+  location      String
+  authorId      String
+  caseStatus    String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  medias        CaseMedia[]
+  author        User           @relation(fields: [authorId], references: [id])
+  claims        Claim[]
+  discussions   Discussion[]
+  evidence      CaseEvidence[]
+  sources       CaseSource[]
+  tags          CaseTag[]
+  caseReactions CaseReaction[]
+  caseViews     CaseView[]
 
   @@index([authorId])
+  @@index([createdAt])
   @@map("cases")
 }
 
+model CaseView {
+  id         String   @id @default(cuid())
+  caseId     String
+  userId     String?
+  visitorKey String?
+  createdAt  DateTime @default(now())
+
+  case Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([userId, createdAt])
+  @@map("case_views")
+}
+
 model Claim {
-  id        String @id @default(cuid())
-  title     String
+  id    String @id @default(cuid())
+  title String
 
   claimType   String?
   caseId      String
@@ -145,15 +165,15 @@ model ClaimMedia {
 }
 
 model Evidence {
-  id          String          @id @default(cuid())
+  id          String               @id @default(cuid())
   title       String
   type        String
   submittedBy String
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   claims      ClaimEvidence[]
   cases       CaseEvidence[]
-  submitter   User            @relation(fields: [submittedBy], references: [id])
+  submitter   User                 @relation(fields: [submittedBy], references: [id])
   medias      EvidenceMedia[]
   validations EvidenceValidation[]
 
@@ -468,4 +488,25 @@ model EvidenceValidation {
 enum EvidenceValidationValue {
   VALID
   INVALID
+}
+
+model CaseReaction {
+  id        String            @id @default(cuid())
+  caseId    String
+  userId    String
+  value     CaseReactionValue
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  case      Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([caseId])
+  @@index([userId])
+  @@map("case_reactions")
+}
+
+enum CaseReactionValue {
+  SUPPORT
+  OPPOSE
 }

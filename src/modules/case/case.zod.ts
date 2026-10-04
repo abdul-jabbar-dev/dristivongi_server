@@ -75,16 +75,22 @@ const submitAssessmentSchema = z.object({
     isAnonymous: z.boolean().default(false),
 });
 
+const submitCaseReactionSchema = z.object({
+    value: z.enum(["SUPPORT", "OPPOSE", "NONE"]),
+});
+
 export type TCreateCase = z.infer<typeof createCaseSchema>;
 export type TCreateClaim = z.infer<typeof createClaimSchema>;
 export type TAddEvidence = z.infer<typeof addEvidenceSchema>;
 export type TSubmitAssessment = z.infer<typeof submitAssessmentSchema>;
+export type TSubmitCaseReaction = z.infer<typeof submitCaseReactionSchema>;
 
 const caseZod = {
     createCaseSchema,
     createClaimSchema,
     addEvidenceSchema,
     submitAssessmentSchema,
+    submitCaseReactionSchema,
 };
 
 export default caseZod;

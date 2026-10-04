@@ -8,7 +8,7 @@ const GlobalError_1 = __importDefault(require("../../../error/GlobalError"));
 const response_1 = __importDefault(require("../../../sheare/response"));
 const http_status_1 = __importDefault(require("http-status"));
 const node_fetch_1 = __importDefault(require("node-fetch"));
-const s3_1 = require("../../../lib/s3");
+const s3_1 = require("../../lib/s3");
 const config_1 = __importDefault(require("../../../config"));
 const client_s3_1 = require("@aws-sdk/client-s3");
 const path_1 = __importDefault(require("path"));
@@ -45,13 +45,18 @@ const importUrl = async (req, res) => {
         return;
     }
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            controller.abort();
+        }, 10000);
         const response = await (0, node_fetch_1.default)(url, {
             method: 'GET',
             headers: {
                 'User-Agent': 'DrishtivongiBot/1.0',
             },
-            timeout: 10000 // 10 seconds timeout
+            signal: controller.signal
         });
+        clearTimeout(timeout);
         if (!response.ok) {
             (0, GlobalError_1.default)(res, `Failed to fetch external media: ${response.statusText}`, `Failed to fetch external media: ${response.statusText}`, http_status_1.default.BAD_REQUEST);
             return;
@@ -59,7 +64,7 @@ const importUrl = async (req, res) => {
         const contentLength = response.headers.get('content-length');
         const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
         if (contentLength && parseInt(contentLength) > MAX_SIZE) {
-            (0, GlobalError_1.default)(res, "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", http_status_1.default.PAYLOAD_TOO_LARGE);
+            (0, GlobalError_1.default)(res, "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", http_status_1.default.REQUEST_ENTITY_TOO_LARGE);
             return;
         }
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -70,7 +75,7 @@ const importUrl = async (req, res) => {
         }
         const buffer = await response.buffer();
         if (buffer.length > MAX_SIZE) {
-            (0, GlobalError_1.default)(res, "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", http_status_1.default.PAYLOAD_TOO_LARGE);
+            (0, GlobalError_1.default)(res, "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", "ভিডিওটি ৫০ MB-এর বেশি হওয়ায় যোগ করা যায়নি।", http_status_1.default.REQUEST_ENTITY_TOO_LARGE);
             return;
         }
         let finalUrl = '';

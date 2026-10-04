@@ -2,6 +2,7 @@ import { db } from "../../../lib/prisma";
 import {
     TCreateCase,
     TCreateClaim,
+    TSubmitCaseReaction,
 } from "./case.zod";
 
 import mediaService from "../media/media.service";
@@ -53,9 +54,9 @@ const createNewCase = async (
 
         for (const normalizedName of allTags) {
             // We use the originally typed name for display if available, else normalized
-            const originalName = caseData.tags?.find(t => normalizeHashtag(t) === normalizedName) || 
-                               (caseData.titleHtml || caseData.title).match(new RegExp(`#(${normalizedName})`, 'i'))?.[1] || 
-                               normalizedName;
+            const originalName = caseData.tags?.find(t => normalizeHashtag(t) === normalizedName) ||
+                (caseData.titleHtml || caseData.title).match(new RegExp(`#(${normalizedName})`, 'i'))?.[1] ||
+                normalizedName;
 
             const tag = await tx.tag.upsert({
                 where: { normalizedName },
@@ -271,11 +272,55 @@ const createNewCase = async (
 };
 
 
+import { caseRankingService } from "./caseRanking.service";
+import { RANKING_CONFIG } from "./ranking.config";
+
+/* =========================================================
+   RECORD CASE VIEW
+========================================================= */
+
+const recordCaseView = async (caseId: string, userId?: string, visitorKey?: string) => {
+    const timeWindow = new Date(Date.now() - RANKING_CONFIG.VIEW_DEDUP_WINDOW_MINUTES * 60 * 1000);
+
+    let existingView = null;
+    if (userId) {
+        existingView = await db.caseView.findFirst({
+            where: { caseId, userId, createdAt: { gte: timeWindow } }
+        });
+    } else if (visitorKey) {
+        existingView = await db.caseView.findFirst({
+            where: { caseId, visitorKey, createdAt: { gte: timeWindow } }
+        });
+    }
+
+    if (existingView) return { recorded: false, reason: "deduplicated" };
+
+    await db.caseView.create({
+        data: { caseId, userId, visitorKey }
+    });
+
+    return { recorded: true };
+};
+
 /* =========================================================
    GET NEWS FEED
 ========================================================= */
 
-const getNewsFeed = async (tag?: string, author?: string) => {
+import { feedService } from "../feed/feed.service"; 
+
+const getNewsFeed = async (tag?: string, author?: string, currentUserId?: string, sort: string = 'recent', page: number = 1, limit: number = 10) => {
+    return feedService.getNewsFeed({
+        userId: currentUserId,
+        sort,
+        page,
+        limit,
+        tag,
+        author,
+        config: RANKING_CONFIG
+    });
+};
+
+const _oldGetNewsFeed = async (tag?: string, author?: string, currentUserId?: string) => {
 
     const whereClause: any = {
         caseStatus: "SHOW",
@@ -290,7 +335,7 @@ const getNewsFeed = async (tag?: string, author?: string) => {
             }
         };
     }
-    
+
     if (author) {
         whereClause.author = {
             userName: { equals: author, mode: 'insensitive' }
@@ -383,11 +428,39 @@ const getNewsFeed = async (tag?: string, author?: string) => {
                 },
             },
 
+            caseReactions: true,
+
         },
     });
 
 
-    return result;
+    return result.map(caseItem => {
+        let support = 0;
+        let oppose = 0;
+        let currentUserReaction: string | null = null;
+
+        if (caseItem.caseReactions) {
+            caseItem.caseReactions.forEach((reaction: any) => {
+                if (reaction.value === "SUPPORT") support++;
+                if (reaction.value === "OPPOSE") oppose++;
+                if (currentUserId && reaction.userId === currentUserId) {
+                    currentUserReaction = reaction.value;
+                }
+            });
+        }
+
+        const { caseReactions, ...rest } = caseItem;
+
+        return {
+            ...rest,
+            reaction: {
+                support,
+                oppose,
+                total: support + oppose,
+                currentUserReaction
+            }
+        };
+    });
 };
 
 
@@ -396,7 +469,8 @@ const getNewsFeed = async (tag?: string, author?: string) => {
 ========================================================= */
 
 const getCaseDetails = async (
-    id: string
+    id: string,
+    currentUserId?: string
 ) => {
 
     const result =
@@ -477,7 +551,7 @@ const getCaseDetails = async (
                                 order: "asc",
                             },
                         },
-                        
+
                         creator: {
                             select: {
                                 id: true,
@@ -583,7 +657,8 @@ const getCaseDetails = async (
                 },
                 sources: {
                     include: { source: true }
-                }
+                },
+                caseReactions: true,
 
             },
 
@@ -594,8 +669,30 @@ const getCaseDetails = async (
         throw new Error("Case not found");
     }
 
+    let support = 0;
+    let oppose = 0;
+    let currentUserReaction: string | null = null;
 
-    return result;
+    if (result.caseReactions) {
+        result.caseReactions.forEach((reaction: any) => {
+            if (reaction.value === "SUPPORT") support++;
+            if (reaction.value === "OPPOSE") oppose++;
+            if (currentUserId && reaction.userId === currentUserId) {
+                currentUserReaction = reaction.value;
+            }
+        });
+    }
+
+    return {
+        ...result,
+        reaction: {
+            support,
+            oppose,
+            total: support + oppose,
+            currentUserReaction
+        },
+        caseReactions: undefined
+    };
 };
 
 
@@ -1117,7 +1214,7 @@ const getAssessments = async (claimId: string, authorId?: string) => {
         if (a.assessment === 'SUPPORTED') support++;
         if (a.assessment === 'INSUFFICIENT_EVIDENCE' || a.assessment === 'PARTIALLY_SUPPORTED') neutral++;
         if (a.assessment === 'CONTRADICTED' || a.assessment === 'DISPUTED') opposition++;
-        
+
         if (authorId && a.userId === authorId) {
             currentUserPosition = a.assessment;
         }
@@ -1141,6 +1238,76 @@ const getAssessments = async (claimId: string, authorId?: string) => {
 };
 
 /* =========================================================
+   CASE REACTIONS
+========================================================= */
+
+const submitCaseReaction = async (
+    caseId: string,
+    userId: string,
+    reactionData: TSubmitCaseReaction
+) => {
+    // Check if case exists
+    const caseRecord = await db.case.findUnique({
+        where: { id: caseId }
+    });
+
+    if (!caseRecord) {
+        throw new Error("Case not found");
+    }
+
+    if (reactionData.value === "NONE") {
+        await db.caseReaction.deleteMany({
+            where: {
+                caseId,
+                userId
+            }
+        });
+    } else {
+        await db.caseReaction.upsert({
+            where: {
+                caseId_userId: {
+                    caseId,
+                    userId
+                }
+            },
+            update: {
+                value: reactionData.value as "SUPPORT" | "OPPOSE"
+            },
+            create: {
+                caseId,
+                userId,
+                value: reactionData.value as "SUPPORT" | "OPPOSE"
+            }
+        });
+    }
+
+    // Recalculate counts
+    const counts = await db.caseReaction.groupBy({
+        by: ['value'],
+        where: { caseId },
+        _count: { value: true }
+    });
+
+    let support = 0;
+    let oppose = 0;
+
+    counts.forEach(count => {
+        if (count.value === "SUPPORT") support = count._count.value;
+        if (count.value === "OPPOSE") oppose = count._count.value;
+    });
+
+    const total = support + oppose;
+    const currentUserReaction = reactionData.value === "NONE" ? null : reactionData.value;
+
+    return {
+        support,
+        oppose,
+        total,
+        currentUserReaction
+    };
+};
+
+/* =========================================================
    SERVICE OBJECT
 ========================================================= */
 
@@ -1153,6 +1320,8 @@ const caseService = {
     addEvidenceToCase,
     submitAssessment,
     getAssessments,
+    submitCaseReaction,
+    recordCaseView,
 };
 
 export default caseService;

@@ -105,9 +105,136 @@ const login = async (user) => {
         throw error;
     }
 };
+const getUserProfile = async (username) => {
+    try {
+        const user = await prisma_1.db.user.findFirst({
+            where: {
+                OR: [
+                    {
+                        userName: {
+                            equals: username,
+                            mode: 'insensitive'
+                        }
+                    },
+                    {
+                        id: username
+                    }
+                ]
+            },
+            select: {
+                id: true,
+                fullName: true,
+                userName: true,
+                createdAt: true,
+                userProfile: {
+                    select: {
+                        profilePicture: true,
+                        coverPicture: true,
+                        bio: true,
+                        location: true,
+                        website: true
+                    }
+                },
+                _count: {
+                    select: {
+                        cases: true,
+                        claims: true,
+                        evidence: true
+                    }
+                }
+            }
+        });
+        if (!user) {
+            throw new Error("User not found");
+        }
+        return user;
+    }
+    catch (error) {
+        throw error;
+    }
+};
+const username_1 = require("../../utils/username");
+const checkUsernameAvailability = async (username, currentUserId) => {
+    const normalized = (0, username_1.normalizeUsername)(username);
+    const validity = (0, username_1.isUsernameValid)(normalized);
+    if (!validity.valid) {
+        return { available: false, reason: validity.reason };
+    }
+    const whereClause = {
+        userName: { equals: normalized, mode: 'insensitive' }
+    };
+    if (currentUserId) {
+        whereClause.id = { not: currentUserId };
+    }
+    const existing = await prisma_1.db.user.findFirst({ where: whereClause });
+    return { available: !existing };
+};
+const updateProfile = async (userId, data) => {
+    try {
+        const result = await prisma_1.db.$transaction(async (tx) => {
+            if (data.fullName || data.userName) {
+                const userUpdateData = {};
+                if (data.fullName)
+                    userUpdateData.fullName = data.fullName;
+                if (data.userName) {
+                    const normalized = (0, username_1.normalizeUsername)(data.userName);
+                    const validity = (0, username_1.isUsernameValid)(normalized);
+                    if (!validity.valid) {
+                        throw new Error(validity.reason);
+                    }
+                    const existing = await tx.user.findFirst({
+                        where: {
+                            userName: { equals: normalized, mode: 'insensitive' },
+                            id: { not: userId }
+                        }
+                    });
+                    if (existing)
+                        throw new Error("Username is already taken");
+                    userUpdateData.userName = normalized;
+                }
+                await tx.user.update({
+                    where: { id: userId },
+                    data: userUpdateData
+                });
+            }
+            const profileData = {};
+            if (data.bio !== undefined)
+                profileData.bio = data.bio;
+            if (data.location !== undefined)
+                profileData.location = data.location;
+            if (data.website !== undefined)
+                profileData.website = data.website;
+            if (data.profilePicture !== undefined)
+                profileData.profilePicture = data.profilePicture;
+            if (data.coverPicture !== undefined)
+                profileData.coverPicture = data.coverPicture;
+            if (Object.keys(profileData).length > 0) {
+                await tx.userProfile.upsert({
+                    where: { userId },
+                    update: profileData,
+                    create: {
+                        userId,
+                        ...profileData
+                    }
+                });
+            }
+            return tx.user.findUnique({
+                where: { id: userId },
+                include: { userProfile: true }
+            });
+        });
+        return result;
+    }
+    catch (error) {
+        throw error;
+    }
+};
 const userService = {
     getAllUsers,
     register,
-    login
+    login,
+    getUserProfile,
+    updateProfile,
+    checkUsernameAvailability
 };
 exports.default = userService;

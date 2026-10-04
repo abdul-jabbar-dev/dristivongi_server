@@ -7,7 +7,7 @@ import evidenceController from "./evidence.controller";
 const evidenceRoute = Router();
 
 const validationSchema = z.object({
-    value: z.enum(["VALID", "INVALID"])
+    value: z.enum(["VALID", "INVALID", "NONE"])
 });
 
 evidenceRoute.post(

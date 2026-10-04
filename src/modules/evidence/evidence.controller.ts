@@ -25,10 +25,13 @@ const getValidationSummary = async (req: Request, res: Response) => {
     let extractedUserId = userId;
     if (!extractedUserId && req.headers.authorization) {
         try {
-            const token = req.headers.authorization;
-            const jwt = require("jsonwebtoken");
-            const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY as string);
-            extractedUserId = (decoded as any).id;
+            let token = req.headers.authorization;
+            if (token.startsWith("Bearer ")) {
+                token = token.slice(7);
+            }
+            const jwtService = require("../../../lib/jwt").default;
+            const decoded = jwtService.verifyToken(token) as any;
+            extractedUserId = decoded?.id || (decoded as any)?.user?.id || decoded;
         } catch (e) {
             // ignore
         }
