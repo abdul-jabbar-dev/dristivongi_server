@@ -275,7 +275,7 @@ const createNewCase = async (
    GET NEWS FEED
 ========================================================= */
 
-const getNewsFeed = async (tag?: string) => {
+const getNewsFeed = async (tag?: string, author?: string) => {
 
     const whereClause: any = {
         caseStatus: "SHOW",
@@ -288,6 +288,12 @@ const getNewsFeed = async (tag?: string) => {
                     normalizedName: tag.toLowerCase()
                 }
             }
+        };
+    }
+    
+    if (author) {
+        whereClause.author = {
+            userName: { equals: author, mode: 'insensitive' }
         };
     }
 

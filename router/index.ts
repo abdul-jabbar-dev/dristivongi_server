@@ -5,6 +5,7 @@ import authRoute from "../src/modules/auth/auth.route";
 import opinionRoute from "../src/modules/opinion/opinion.route";
 import { tagRoutes } from "../src/modules/tag/tag.route";
 import mediaRoute from "../src/modules/media/media.route";
+import evidenceRoute from "../src/modules/evidence/evidence.route";
 
 const apiRoutes = Router()
 
@@ -14,5 +15,6 @@ apiRoutes.use('/auth', authRoute)
 apiRoutes.use('/opinions', opinionRoute)
 apiRoutes.use('/tags', tagRoutes)
 apiRoutes.use('/media', mediaRoute)
+apiRoutes.use('/evidence', evidenceRoute)
 
 export default apiRoutes

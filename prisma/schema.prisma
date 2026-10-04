@@ -23,6 +23,7 @@ model User {
   opinions        Opinion[]
   sessions        Session[]
   sources         Source[]
+  evidenceValidations EvidenceValidation[]
   userAddress     UserAddress?
   userCredential  UserCredential?
   userProfile     UserProfile?
@@ -65,7 +66,10 @@ model UserProfile {
   id             String   @id @default(cuid())
   userId         String   @unique
   profilePicture String?
+  coverPicture   String?
   bio            String?
+  location       String?
+  website        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id])
@@ -151,6 +155,7 @@ model Evidence {
   cases       CaseEvidence[]
   submitter   User            @relation(fields: [submittedBy], references: [id])
   medias      EvidenceMedia[]
+  validations EvidenceValidation[]
 
   @@index([submittedBy])
   @@map("evidence")
@@ -442,4 +447,25 @@ model CaseTag {
   @@unique([caseId, tagId])
   @@index([tagId])
   @@map("case_tags")
+}
+
+model EvidenceValidation {
+  id         String                  @id @default(cuid())
+  evidenceId String
+  userId     String
+  value      EvidenceValidationValue
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+  evidence   Evidence                @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, userId])
+  @@index([evidenceId])
+  @@index([userId])
+  @@map("evidence_validation")
+}
+
+enum EvidenceValidationValue {
+  VALID
+  INVALID
 }

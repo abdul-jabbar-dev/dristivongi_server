@@ -64,8 +64,9 @@ const getNewsFeed = async (
 
     try {
         const tag = req.query.tag as string | undefined;
+        const author = req.query.author as string | undefined;
         const result =
-            await caseService.getNewsFeed(tag);
+            await caseService.getNewsFeed(tag, author);
 
 
         Res.send(
