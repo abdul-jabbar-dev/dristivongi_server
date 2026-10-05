@@ -13,6 +13,7 @@ export const createOpinionSchema = z.object({
         targetId: z.string().min(1, "Target ID is required"),
         content: z.string().optional().default(""),
         value: z.string().optional(),
+        isAnonymous: z.boolean().optional(),
         parentId: z.string().optional(),
         sources: z.array(z.object({
             title: z.string(),

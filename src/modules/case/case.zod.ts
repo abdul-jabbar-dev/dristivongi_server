@@ -10,6 +10,7 @@ const evidenceSchema = z.object({
     title: z.string().min(1),
     type: z.string().min(1),
     relationship: relationshipSchema,
+    isAnonymous: z.boolean().optional(),
 });
 
 const sourceSchema = z.object({
@@ -20,6 +21,7 @@ const sourceSchema = z.object({
     externalSourceName: z.string(),
     externalLinks: z.array(z.string()),
     relationship: relationshipSchema,
+    isAnonymous: z.boolean().optional(),
 });
 
 
@@ -31,9 +33,11 @@ const createCaseSchema = z.object({
     title: z.string().min(3),
     titleHtml: z.string(),
     location: z.string().min(3),
+    isAnonymous: z.boolean().optional(),
 
     claims: z.object({
         title: z.string().min(3),
+        isAnonymous: z.boolean().optional(),
 
         evidence: z
             .array(evidenceSchema)
@@ -54,6 +58,7 @@ const createCaseSchema = z.object({
 
 const createClaimSchema = z.object({
     title: z.string().min(3),
+    isAnonymous: z.boolean().optional(),
 
     evidence: z
         .array(evidenceSchema)
@@ -66,6 +71,7 @@ const createClaimSchema = z.object({
 
 
 const addEvidenceSchema = z.object({
+    isAnonymous: z.boolean().optional(),
     evidence: z.array(evidenceSchema).default([]),
     sources: z.array(sourceSchema).default([]),
 });

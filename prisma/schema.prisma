@@ -31,6 +31,10 @@ model User {
   reportsReviewed     Report[]             @relation("ReviewedBy")
   caseReactions       CaseReaction[]
   caseViews           CaseView[]
+  organizationsCreated    Organization[]           @relation("OrganizationCreator")
+  organizationMemberships OrganizationMembership[]
+  organizationInvitations OrganizationInvitation[]
+  officialResponses       OfficialResponse[]
 
   @@map("users")
 }
@@ -92,6 +96,7 @@ model UserCredential {
 }
 
 model Case {
+  isAnonymous   Boolean        @default(false)
   id            String         @id @default(cuid())
   title         String
   titleHtml     String         @default("") @db.Text
@@ -109,6 +114,7 @@ model Case {
   tags          CaseTag[]
   caseReactions CaseReaction[]
   caseViews     CaseView[]
+  officialResponses OfficialResponse[]
 
   @@index([authorId])
   @@index([createdAt])
@@ -131,6 +137,7 @@ model CaseView {
 }
 
 model Claim {
+  isAnonymous   Boolean        @default(false)
   id    String @id @default(cuid())
   title String
 
@@ -165,6 +172,7 @@ model ClaimMedia {
 }
 
 model Evidence {
+  isAnonymous   Boolean        @default(false)
   id          String               @id @default(cuid())
   title       String
   type        String
@@ -204,6 +212,7 @@ model Media {
   claimMedias    ClaimMedia[]
   evidenceMedias EvidenceMedia[]
   opinionMedias  OpinionMedia[]
+  organizationDocuments OrganizationDocument[]
 
   @@map("medias")
 }
@@ -232,6 +241,7 @@ model EvidenceMedia {
 }
 
 model Source {
+  isAnonymous   Boolean        @default(false)
   id                 String          @id @default(cuid())
   title              String
   sourceLocation     String
@@ -308,6 +318,7 @@ model Assessment {
 }
 
 model Discussion {
+  isAnonymous   Boolean        @default(false)
   id        String       @id @default(cuid())
   content   String
   userId    String
@@ -330,6 +341,7 @@ model Discussion {
 }
 
 model Opinion {
+  isAnonymous   Boolean        @default(false)
   id         String          @id @default(cuid())
   content    String
   value      String?
@@ -398,6 +410,7 @@ enum TargetType {
 }
 
 model Report {
+  isAnonymous   Boolean        @default(false)
   id          String           @id @default(cuid())
   targetType  TargetType
   targetId    String
@@ -509,4 +522,151 @@ model CaseReaction {
 enum CaseReactionValue {
   SUPPORT
   OPPOSE
+}
+
+// --- ORGANIZATION SYSTEM ---
+
+enum OrganizationVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum OrganizationVerificationStatus {
+  UNVERIFIED
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrganizationStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  REPRESENTATIVE
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model Organization {
+  id                 String                         @id @default(cuid())
+  name               String
+  slug               String                         @unique
+  description        String?                        @db.Text
+  organizationType   String
+  
+  // The Three Separated Concepts
+  visibility         OrganizationVisibility         @default(PUBLIC)
+  verificationStatus OrganizationVerificationStatus @default(UNVERIFIED)
+  status             OrganizationStatus
+  
+  // Media
+  logoUrl            String?
+  coverUrl           String?
+
+  // Contact / Location
+  website            String?
+  email              String?
+  phone              String?
+  address            String?
+
+  // Moderation / Verification Metadata
+  rejectionReason    String?
+  suspensionReason   String?
+  verifiedAt         DateTime?
+  verifiedBy         String?
+  suspendedAt        DateTime?
+  suspendedBy        String?
+
+  // Auditing
+  createdBy          String
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+
+  // Relationships
+  creator            User                           @relation("OrganizationCreator", fields: [createdBy], references: [id])
+  memberships        OrganizationMembership[]
+  invitations        OrganizationInvitation[]
+  officialResponses  OfficialResponse[]
+  verificationDocs   OrganizationDocument[]
+
+  @@map("organizations")
+}
+
+model OrganizationMembership {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  invitedBy      String?
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_memberships")
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(cuid())
+  organizationId String
+  email          String
+  invitedBy      String
+  role           OrganizationRole @default(MEMBER)
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter        User             @relation(fields: [invitedBy], references: [id])
+
+  @@index([email])
+  @@map("organization_invitations")
+}
+
+model OrganizationDocument {
+  organizationId String
+  mediaId        String
+  documentType   String
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  media          Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, mediaId])
+  @@map("organization_documents")
+}
+
+model OfficialResponse {
+  id               String       @id @default(cuid())
+  organizationId   String
+  caseId           String
+  representativeId String
+  content          String       @db.Text
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  case             Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  representative   User         @relation(fields: [representativeId], references: [id])
+
+  @@index([caseId])
+  @@map("official_responses")
 }

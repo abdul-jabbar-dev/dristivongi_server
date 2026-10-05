@@ -3,7 +3,7 @@ import { TCreateOpinion } from "./opinion.zod";
 import mediaService from "../media/media.service";
 
 const createOpinion = async (payload: TCreateOpinion, authorId: string, files?: Express.Multer.File[]) => {
-    const { targetType, targetId, content, value, parentId, sources } = payload;
+    const { targetType, targetId, content, value, parentId, sources, isAnonymous } = payload;
     
     if (!content?.trim() && (!files || files.length === 0) && (!sources || sources.length === 0)) {
         throw new Error("Comment must contain either text, files, or links");
@@ -43,7 +43,8 @@ const createOpinion = async (payload: TCreateOpinion, authorId: string, files?: 
                     externalSourceType: src.externalSourceType,
                     externalSourceName: src.externalSourceName,
                     externalLinks: src.externalLinks || [],
-                    createdBy: authorId
+                    createdBy: authorId,
+                    isAnonymous: isAnonymous || false
                 }
             });
             sourceIds.push(newSource.id);
@@ -59,7 +60,8 @@ const createOpinion = async (payload: TCreateOpinion, authorId: string, files?: 
                 targetType,
                 targetId,
                 authorId,
-                parentId
+                parentId,
+                isAnonymous: isAnonymous || false
             }
         });
 
@@ -119,11 +121,26 @@ const getOpinions = async (targetType: any, targetId: string) => {
 };
 
 const deleteOpinion = async (id: string, authorId: string) => {
-    const opinion = await db.opinion.findUnique({ where: { id } });
+    const opinion = await db.opinion.findUnique({ 
+        where: { id },
+        include: { medias: { include: { media: true } } }
+    });
+    
     if (!opinion) throw new Error("Opinion not found!");
     if (opinion.authorId !== authorId) throw new Error("Unauthorized to delete this opinion!");
 
+    const mediaIdsToCleanup = opinion.medias.map((m: any) => m.mediaId);
+
     await db.opinion.delete({ where: { id } });
+    
+    // Safely delete unreferenced media
+    if (mediaIdsToCleanup.length > 0) {
+        const { safeDeleteMedia } = await import('../media/media.utils');
+        for (const mediaId of mediaIdsToCleanup) {
+            await safeDeleteMedia(mediaId, db);
+        }
+    }
+    
     return true;
 };
 

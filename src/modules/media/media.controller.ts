@@ -124,14 +124,21 @@ const importUrl = async (req: Request, res: Response) => {
             finalUrl = `/uploads/${filename}`; // Adjust based on how local static files are served
         }
         
-        const media = await db.media.create({
-            data: {
-                url: finalUrl,
-                type: contentType
-            }
-        });
+        try {
+            const media = await db.media.create({
+                data: {
+                    url: finalUrl,
+                    type: contentType
+                }
+            });
 
-        Res.send(res, media, "Media imported successfully", httpStatus.OK);
+            Res.send(res, media, "Media imported successfully", httpStatus.OK);
+        } catch (dbError) {
+            // DB creation failed, delete the newly uploaded file
+            const { deleteFileFromStorage } = await import('./media.utils');
+            await deleteFileFromStorage(finalUrl);
+            throw dbError; // let the outer catch handle it
+        }
         
     } catch (error: any) {
         GlobalError(res, error, `Media import failed: ${error.message}`, httpStatus.INTERNAL_SERVER_ERROR);

@@ -67,7 +67,7 @@ const login = async (payload: TLogin) => {
 
     const user = await db.user.findUnique({
         where: { email },
-        include: { userCredential: true }
+        include: { userCredential: true, userProfile: true }
     });
 
     if (!user || !user.userCredential) {
@@ -107,6 +107,7 @@ const login = async (payload: TLogin) => {
         fullName: user.fullName,
         userName: user.userName,
         type: user.type,
+        userProfile: user.userProfile
     };
 
     return { user: safeUser, accessToken, refreshToken };
@@ -160,6 +161,7 @@ const me = async (userId: string) => {
             userName: true,
             type: true,
             createdAt: true,
+            userProfile: true
         }
     });
 

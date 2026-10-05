@@ -21,38 +21,45 @@ class FeedService {
         const endIndex = startIndex + context.limit;
         const pagedCandidates = rankedCandidates.slice(startIndex, endIndex);
         
-        const caseList = pagedCandidates.map((c:any) => ({
-            id: c.case.id,
-            title: c.case.title,
-            titleHtml: c.case.titleHtml,
-            location: c.case.location,
-            createdAt: c.case.createdAt,
-            updatedAt: c.case.updatedAt,
-            author: {
-                id: c.case.author.id,
-                fullName: c.case.author.fullName,
-                userName: c.case.author.userName,
-                profilePicture: c.case.author.userProfile?.profilePicture,
-                isVerified: false,
-            },
-            stats: {
-                supportCount: c.case._count?.caseReactions || 0,
-                opposeCount: 0,
-                viewCount: c.case._count?.caseViews || 0,
-                discussionCount: c.case._count?.discussions || 0,
-                evidenceCount: c.case._count?.evidence || 0,
-                sourceCount: c.case._count?.sources || 0,
-                claimCount: c.case._count?.claims || 0,
-            },
-            claims: c.case.claims || [],
-            tags: c.case.tags || [],
-            reaction: c.case.caseReactions ? {
-                support: c.case.caseReactions.filter((r: any) => r.value === 'SUPPORT').length,
-                oppose: c.case.caseReactions.filter((r: any) => r.value === 'OPPOSE').length,
-                total: c.case.caseReactions.length,
-                currentUserReaction: context.userId ? c.case.caseReactions.find((r: any) => r.userId === context.userId)?.value || null : null
-            } : undefined
-        }));
+        const { sanitizeAnonymousCase } = require('../../utils/privacy.utils');
+
+        const caseList = pagedCandidates.map((c:any) => {
+            const rawCase = {
+                id: c.case.id,
+                title: c.case.title,
+                titleHtml: c.case.titleHtml,
+                location: c.case.location,
+                createdAt: c.case.createdAt,
+                updatedAt: c.case.updatedAt,
+                isAnonymous: c.case.isAnonymous,
+                author: {
+                    id: c.case.author.id,
+                    fullName: c.case.author.fullName,
+                    userName: c.case.author.userName,
+                    userProfile: c.case.author.userProfile,
+                    isVerified: false,
+                },
+                stats: {
+                    supportCount: c.case._count?.caseReactions || 0,
+                    opposeCount: 0,
+                    viewCount: c.case._count?.caseViews || 0,
+                    discussionCount: c.case._count?.discussions || 0,
+                    evidenceCount: c.case._count?.evidence || 0,
+                    sourceCount: c.case._count?.sources || 0,
+                    claimCount: c.case._count?.claims || 0,
+                },
+                claims: c.case.claims || [],
+                tags: c.case.tags || [],
+                reaction: c.case.caseReactions ? {
+                    support: c.case.caseReactions.filter((r: any) => r.value === 'SUPPORT').length,
+                    oppose: c.case.caseReactions.filter((r: any) => r.value === 'OPPOSE').length,
+                    total: c.case.caseReactions.length,
+                    currentUserReaction: context.userId ? c.case.caseReactions.find((r: any) => r.userId === context.userId)?.value || null : null
+                } : undefined
+            };
+
+            return sanitizeAnonymousCase(rawCase);
+        });
         
         return {
             data: caseList,

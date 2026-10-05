@@ -45,6 +45,7 @@ const createNewCase = async (
                 location: caseData.location,
                 authorId: author,
                 caseStatus: "SHOW",
+                isAnonymous: caseData.isAnonymous || false,
             },
         });
 
@@ -119,6 +120,7 @@ const createNewCase = async (
                 createdBy: author,
 
                 claimType: "BASIC",
+                isAnonymous: caseData.claims.isAnonymous || false,
             },
         });
 
@@ -169,6 +171,7 @@ const createNewCase = async (
                         title: evidence.title,
                         type: evidence.type,
                         submittedBy: author,
+                        isAnonymous: evidence.isAnonymous || false,
                     },
                 });
 
@@ -245,6 +248,7 @@ const createNewCase = async (
                             source.externalLinks,
 
                         createdBy: author,
+                        isAnonymous: source.isAnonymous || false,
                     },
                 });
 
@@ -683,7 +687,7 @@ const getCaseDetails = async (
         });
     }
 
-    return {
+    const rawCaseDetail = {
         ...result,
         reaction: {
             support,
@@ -693,6 +697,9 @@ const getCaseDetails = async (
         },
         caseReactions: undefined
     };
+
+    const { sanitizeAnonymousCase } = require('../../utils/privacy.utils');
+    return sanitizeAnonymousCase(rawCaseDetail);
 };
 
 
@@ -768,6 +775,8 @@ const createClaim = async (
 
                     claimType:
                         "BASIC",
+                    
+                    isAnonymous: claimData.isAnonymous || false,
 
                 },
 
@@ -841,6 +850,7 @@ const createClaim = async (
                         submittedBy:
                             author,
 
+                        isAnonymous: evidence.isAnonymous || false,
                     },
 
                 });
@@ -941,6 +951,7 @@ const createClaim = async (
                         createdBy:
                             author,
 
+                        isAnonymous: source.isAnonymous || false,
                     },
 
                 });
@@ -1004,6 +1015,7 @@ const addEvidenceToClaim = async (
                     title: evidence.title,
                     type: evidence.type,
                     submittedBy: author,
+                    isAnonymous: evidence.isAnonymous || false,
                 },
             });
 
@@ -1044,6 +1056,7 @@ const addEvidenceToClaim = async (
                     externalSourceName: source.externalSourceName,
                     externalLinks: source.externalLinks,
                     createdBy: author,
+                    isAnonymous: source.isAnonymous || false,
                 },
             });
 
@@ -1090,6 +1103,7 @@ const addEvidenceToCase = async (
                     title: evidence.title,
                     type: evidence.type,
                     submittedBy: author,
+                    isAnonymous: evidence.isAnonymous || false,
                 },
             });
 
@@ -1130,6 +1144,7 @@ const addEvidenceToCase = async (
                     externalSourceName: source.externalSourceName,
                     externalLinks: source.externalLinks,
                     createdBy: author,
+                    isAnonymous: source.isAnonymous || false,
                 },
             });
 

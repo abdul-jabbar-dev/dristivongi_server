@@ -135,6 +135,13 @@ const updateProfile = async (req: Request, res: Response) => {
         const payload = req.body;
         const files = (req.files as any[]) || [];
         
+        // 1. Fetch current profile to know what to delete
+        const { db } = require("../../../lib/prisma");
+        const currentProfile = await db.userProfile.findUnique({ where: { userId } });
+        
+        let oldProfilePicture = currentProfile?.profilePicture;
+        let oldCoverPicture = currentProfile?.coverPicture;
+
         const profilePicture = files.find(f => f.fieldname === 'profilePicture');
         if (profilePicture) {
             let loc = profilePicture.location || (profilePicture.path ? `/uploads/${profilePicture.filename}` : undefined);
@@ -154,8 +161,22 @@ const updateProfile = async (req: Request, res: Response) => {
         }
 
         const result = await userService.updateProfile(userId, payload);
+        
+        // Success: safely delete old images if replaced
+        const { deleteFileFromStorage } = await import('../media/media.utils');
+        if (profilePicture && oldProfilePicture && oldProfilePicture !== payload.profilePicture) {
+            await deleteFileFromStorage(oldProfilePicture);
+        }
+        if (coverPicture && oldCoverPicture && oldCoverPicture !== payload.coverPicture) {
+            await deleteFileFromStorage(oldCoverPicture);
+        }
+
         Res.send(res, result, "Profile updated successfully");
     } catch (error: any) {
+        // Error: clean up the newly uploaded files so they don't orphan
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
+        
         GlobalError(res, error, error.message, 400);
     }
 }

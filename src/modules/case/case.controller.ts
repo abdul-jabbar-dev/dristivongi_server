@@ -46,9 +46,9 @@ const createNewCase = async (
         );
 
     } catch (error) {
-
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
         GlobalError(res, error);
-
     }
 };
 
@@ -191,9 +191,9 @@ const createClaim = async (
         );
 
     } catch (error) {
-
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
         GlobalError(res, error);
-
     }
 };
 
@@ -218,6 +218,8 @@ const addEvidence = async (req: Request, res: Response) => {
 
         Res.send(res, result, "Evidence added successfully", 201);
     } catch (error) {
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
         GlobalError(res, error);
     }
 };
@@ -242,6 +244,8 @@ const addCaseEvidence = async (req: Request, res: Response) => {
 
         Res.send(res, result, "Evidence added successfully", 201);
     } catch (error) {
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
         GlobalError(res, error);
     }
 };

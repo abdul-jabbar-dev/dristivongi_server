@@ -63,7 +63,8 @@ const login = async (user: TCreateUser) => {
 
         const result = await db.$transaction(async (tx) => {
             const isUserExits = await tx.user.findFirst({
-                where: { email: user.email }
+                where: { email: user.email },
+                include: { userProfile: true }
             })
 
             if (!isUserExits) {
@@ -110,8 +111,10 @@ const login = async (user: TCreateUser) => {
             return {
                 AccessToken, RefreshToken, user: {
                     id: String(isUserExits.id),
+                    userName: String(isUserExits.userName || ''),
                     email: String(isUserExits.email),
-                    fullName: String(isUserExits.fullName)
+                    fullName: String(isUserExits.fullName),
+                    userProfile: isUserExits.userProfile
                 }
             }
         })
