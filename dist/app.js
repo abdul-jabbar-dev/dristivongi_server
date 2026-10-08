@@ -16,8 +16,8 @@ app.use((0, cors_1.default)({
     origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     credentials: true
 }));
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
+app.use(express_1.default.json({ limit: '50mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '50mb' }));
 // Simple Cookie Parser Middleware (Since cookie-parser package is missing)
 app.use((req, res, next) => {
     req.cookies = {};

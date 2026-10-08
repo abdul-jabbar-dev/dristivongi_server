@@ -5,7 +5,7 @@ const db = new client_1.PrismaClient();
 async function main() {
     try {
         const res = await db.case.findFirst({
-            include: { caseEvidence: { include: { evidence: { include: { medias: true } } } }, caseSources: { include: { source: true } } }
+            include: { evidence: { include: { evidence: { include: { medias: true } } } }, sources: { include: { source: true } } }
         });
         console.log("SUCCESS", !!res);
     }

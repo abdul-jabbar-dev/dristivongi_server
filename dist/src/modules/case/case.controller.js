@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -18,6 +51,8 @@ const createNewCase = async (req, res) => {
         response_1.default.send(res, result, "Case created successfully", 201);
     }
     catch (error) {
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
         (0, GlobalError_1.default)(res, error);
     }
 };
@@ -46,7 +81,9 @@ const getNewsFeed = async (req, res) => {
             }
         }
         const sort = req.query.sort;
-        const result = await case_service_1.default.getNewsFeed(tag, author, currentUserId, sort);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const result = await case_service_1.default.getNewsFeed(tag, author, currentUserId, sort, page, limit);
         response_1.default.send(res, result, "News feed fetched successfully", 200);
     }
     catch (error) {
@@ -96,6 +133,8 @@ const createClaim = async (req, res) => {
         response_1.default.send(res, result, "Claim created successfully", 201);
     }
     catch (error) {
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
         (0, GlobalError_1.default)(res, error);
     }
 };
@@ -112,6 +151,8 @@ const addEvidence = async (req, res) => {
         response_1.default.send(res, result, "Evidence added successfully", 201);
     }
     catch (error) {
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
         (0, GlobalError_1.default)(res, error);
     }
 };
@@ -128,6 +169,8 @@ const addCaseEvidence = async (req, res) => {
         response_1.default.send(res, result, "Evidence added successfully", 201);
     }
     catch (error) {
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
         (0, GlobalError_1.default)(res, error);
     }
 };
@@ -215,6 +258,59 @@ const recordCaseView = async (req, res) => {
     }
 };
 /* =========================
+   CLAIM UPDATES
+========================= */
+const createClaimUpdate = async (req, res) => {
+    try {
+        const claimId = req.params.claimId;
+        const userId = req.user.id;
+        const updateData = req.body;
+        const files = req.files || [];
+        const result = await case_service_1.default.createClaimUpdate(claimId, updateData, userId, files);
+        response_1.default.send(res, result, "Claim update created successfully", 201);
+    }
+    catch (error) {
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+const getClaimUpdates = async (req, res) => {
+    try {
+        const claimId = req.params.claimId;
+        const limit = req.query.limit ? parseInt(req.query.limit) : 20;
+        const cursor = req.query.cursor ? req.query.cursor : undefined;
+        const result = await case_service_1.default.getClaimUpdates(claimId, limit, cursor);
+        response_1.default.send(res, result, "Claim updates retrieved successfully", 200);
+    }
+    catch (error) {
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+const getClaimUpdatePermissions = async (req, res) => {
+    try {
+        const claimId = req.params.claimId;
+        const userId = req.user?.id;
+        const result = await case_service_1.default.getClaimUpdatePermissions(claimId, userId);
+        response_1.default.send(res, result, "Claim update permissions retrieved successfully", 200);
+    }
+    catch (error) {
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+const updateCaseSettings = async (req, res) => {
+    try {
+        const caseId = req.params.caseId;
+        const userId = req.user.id;
+        const settingsData = req.body;
+        const result = await case_service_1.default.updateCaseSettings(caseId, settingsData, userId);
+        response_1.default.send(res, result, "Case settings updated successfully", 200);
+    }
+    catch (error) {
+        (0, GlobalError_1.default)(res, error);
+    }
+};
+/* =========================
    CONTROLLER OBJECT
 ========================= */
 const caseController = {
@@ -228,5 +324,9 @@ const caseController = {
     getAssessments,
     submitCaseReaction,
     recordCaseView,
+    createClaimUpdate,
+    getClaimUpdates,
+    getClaimUpdatePermissions,
+    updateCaseSettings,
 };
 exports.default = caseController;

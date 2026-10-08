@@ -38,6 +38,10 @@ class CaseRankingService {
                 },
                 caseReactions: {
                     select: { value: true }
+                },
+                claims: {
+                    take: 1,
+                    select: { title: true }
                 }
             }
         });

@@ -8,9 +8,7 @@ async function main() {
     user = await db.user.create({
       data: {
         email: 'testuser_' + Date.now() + '@example.com',
-        name: 'Test User',
         fullName: 'Test User Full',
-        provider: 'CREDENTIALS'
       }
     });
   }
@@ -21,7 +19,8 @@ async function main() {
       data: {
         title: 'Test Case',
         location: 'Dhaka',
-        authorId: user.id
+        authorId: user.id,
+        caseStatus: 'ACTIVE',
       }
     });
   }
@@ -39,7 +38,7 @@ async function main() {
     });
   }
 
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, type: 'access' }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.fullName, type: 'access' }, process.env.JWT_SECRET!, { expiresIn: '1h' });
   console.log(JSON.stringify({
     token,
     caseId: testCase.id,

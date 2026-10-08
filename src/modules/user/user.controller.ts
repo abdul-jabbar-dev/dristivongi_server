@@ -21,7 +21,6 @@ const getAllUsers = async (req: Request, res: Response) => {
 
 const register = async (req: Request, res: Response) => {
     try {
-        console.log(req.body)
         const user: TCreateUser = req.body;
         const users = await userService.register(user)
         Res.send(res, users, 'User created successfully', 201)

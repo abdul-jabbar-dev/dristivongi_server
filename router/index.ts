@@ -7,6 +7,8 @@ import { tagRoutes } from "../src/modules/tag/tag.route";
 import mediaRoute from "../src/modules/media/media.route";
 import evidenceRoute from "../src/modules/evidence/evidence.route";
 import organizationRoute from "../src/modules/organization/organization.route";
+import feedRoute from "../src/modules/feed/feed.route";
+import searchRoute from "../src/modules/search/search.route";
 
 const apiRoutes = Router()
 
@@ -18,5 +20,7 @@ apiRoutes.use('/tags', tagRoutes)
 apiRoutes.use('/media', mediaRoute)
 apiRoutes.use('/evidence', evidenceRoute)
 apiRoutes.use('/organizations', organizationRoute)
+apiRoutes.use('/feed', feedRoute)
+apiRoutes.use('/search', searchRoute)
 
 export default apiRoutes

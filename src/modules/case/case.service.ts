@@ -3,6 +3,8 @@ import {
     TCreateCase,
     TCreateClaim,
     TSubmitCaseReaction,
+    TCreateClaimUpdate,
+    TUpdateCaseSettings,
 } from "./case.zod";
 
 import mediaService from "../media/media.service";
@@ -46,8 +48,22 @@ const createNewCase = async (
                 authorId: author,
                 caseStatus: "SHOW",
                 isAnonymous: caseData.isAnonymous || false,
+                canUserCreateClaim: typeof caseData.canUserCreateClaim === "boolean" ? caseData.canUserCreateClaim : true,
+                canUserCreateClaimEvidence: typeof caseData.canUserCreateClaimEvidence === "boolean" ? caseData.canUserCreateClaimEvidence : true,
+                canUserCreateClaimUpdate: typeof caseData.canUserCreateClaimUpdate === "boolean" ? caseData.canUserCreateClaimUpdate : true,
             },
         });
+
+        if (caseData.organizationId) {
+            await tx.officialResponse.create({
+                data: {
+                    organizationId: caseData.organizationId,
+                    caseId: newCase.id,
+                    representativeId: author,
+                    content: "Case reported to organization",
+                }
+            });
+        }
 
         /* =====================================================
            1.5 HASHTAGS
@@ -589,6 +605,14 @@ const getCaseDetails = async (
                                             },
                                         },
 
+                                        submitter: {
+                                            select: {
+                                                id: true,
+                                                fullName: true,
+                                                userName: true,
+                                            },
+                                        },
+
                                     },
 
                                 },
@@ -605,7 +629,17 @@ const getCaseDetails = async (
                         sources: {
 
                             include: {
-                                source: true,
+                                source: {
+                                    include: {
+                                        creator: {
+                                            select: {
+                                                id: true,
+                                                fullName: true,
+                                                userName: true,
+                                            },
+                                        },
+                                    },
+                                },
                             },
 
                         },
@@ -689,6 +723,11 @@ const getCaseDetails = async (
 
     const rawCaseDetail = {
         ...result,
+        settings: {
+            canUserCreateClaim: result.canUserCreateClaim ?? true,
+            canUserCreateClaimEvidence: result.canUserCreateClaimEvidence ?? true,
+            canUserCreateClaimUpdate: result.canUserCreateClaimUpdate ?? true,
+        },
         reaction: {
             support,
             oppose,
@@ -738,6 +777,12 @@ const createClaim = async (
 
         if (existingCase.caseStatus !== "SHOW") {
             throw new Error("Case is not available");
+        }
+
+        if (existingCase.canUserCreateClaim === false && existingCase.authorId !== author) {
+            const error: any = new Error("Claim creation is disabled for this case");
+            error.statusCode = 403;
+            throw error;
         }
 
         if (existingCase.authorId !== author) {
@@ -999,10 +1044,17 @@ const addEvidenceToClaim = async (
         // 1. CHECK CLAIM
         const existingClaim = await tx.claim.findUnique({
             where: { id: claimId },
+            include: { case: true }
         });
 
         if (!existingClaim) {
             throw new Error("Claim not found");
+        }
+
+        if (existingClaim.case.canUserCreateClaimEvidence === false && existingClaim.case.authorId !== author) {
+            const error: any = new Error("Adding evidence to claims is disabled for this case");
+            error.statusCode = 403;
+            throw error;
         }
 
         // 2. ADD EVIDENCE
@@ -1323,6 +1375,367 @@ const submitCaseReaction = async (
 };
 
 /* =========================================================
+   CLAIM UPDATES & TIMELINE SERVICE
+========================================================= */
+
+const getClaimUpdatePermissions = async (claimId: string, userId?: string) => {
+    const claim = await db.claim.findUnique({
+        where: { id: claimId },
+        include: { case: { select: { authorId: true, canUserCreateClaimUpdate: true } } }
+    });
+
+    if (!claim) {
+        const error: any = new Error("Claim not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const isDirectCaseClaim = claim.createdBy === claim.case.authorId || claim.claimType === "DIRECT_CASE";
+    
+    const isCaseAuthor = Boolean(userId && claim.case.authorId === userId);
+    const canAddUpdate = Boolean(userId) && (claim.case.canUserCreateClaimUpdate || isCaseAuthor);
+
+    return {
+        canAddUpdate,
+        isDirectCaseClaim,
+        claimId,
+        currentState: claim.currentState || "PROPOSED"
+    };
+};
+
+const createClaimUpdate = async (
+    claimId: string,
+    data: TCreateClaimUpdate,
+    userId: string,
+    files: any[] = []
+) => {
+    const { sanitizeAnonymousClaimUpdate } = require('../../utils/privacy.utils');
+
+    return db.$transaction(async (tx) => {
+        const claim = await tx.claim.findUnique({
+            where: { id: claimId },
+            include: { case: { select: { id: true, authorId: true, caseStatus: true, canUserCreateClaimUpdate: true } } }
+        });
+
+        if (!claim) {
+            const error: any = new Error("Claim not found");
+            error.statusCode = 404;
+            throw error;
+        }
+
+        if (claim.claimStatus !== "SHOW" || claim.case.caseStatus !== "SHOW") {
+            const error: any = new Error("Claim or Case is not active");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        if (claim.case.canUserCreateClaimUpdate === false && claim.case.authorId !== userId) {
+            const error: any = new Error("Creating claim updates is disabled for this case");
+            error.statusCode = 403;
+            throw error;
+        }
+
+        const isDirectCaseClaim = claim.createdBy === claim.case.authorId || claim.claimType === "DIRECT_CASE";
+
+        const previousState = claim.currentState || "PROPOSED";
+        const newState = data.newState || null;
+
+        let finalUpdateType = data.updateType || "GENERAL_UPDATE";
+        if (newState && newState !== previousState && finalUpdateType === "GENERAL_UPDATE") {
+            finalUpdateType = "STATE_CHANGED";
+        }
+
+        if (newState && newState !== previousState) {
+            await tx.claim.update({
+                where: { id: claimId },
+                data: { currentState: newState }
+            });
+        }
+
+        // Handle new native evidence created during update flow
+        const targetEvidenceIds = [...(data.evidenceIds || [])];
+        if (data.evidence && data.evidence.length > 0) {
+            for (let index = 0; index < data.evidence.length; index++) {
+                const ev = data.evidence[index];
+                const newEv = await tx.evidence.create({
+                    data: {
+                        title: ev.title,
+                        type: ev.type,
+                        submittedBy: userId,
+                        isAnonymous: ev.isAnonymous || data.isAnonymous || false
+                    }
+                });
+
+                await tx.claimEvidence.create({
+                    data: {
+                        claimId,
+                        evidenceId: newEv.id,
+                        relationship: ev.relationship || "SUPPORTS"
+                    }
+                });
+
+                const evidenceMedias = await mediaService.processAndCreateMedia(
+                    tx,
+                    files,
+                    `evidenceMedia_${index}`
+                );
+
+                for (const { mediaId, order } of evidenceMedias) {
+                    await tx.evidenceMedia.create({
+                        data: {
+                            evidenceId: newEv.id,
+                            mediaId,
+                            order,
+                        },
+                    });
+                }
+
+                targetEvidenceIds.push(newEv.id);
+            }
+        }
+
+        // Handle new native sources created during update flow
+        const targetSourceIds = [...(data.sourceIds || [])];
+        if (data.sources && data.sources.length > 0) {
+            for (const src of data.sources) {
+                const newSrc = await tx.source.create({
+                    data: {
+                        title: src.title,
+                        sourceLocation: src.sourceLocation,
+                        sourceDate: src.sourceDate ? new Date(src.sourceDate) : null,
+                        externalSourceType: src.externalSourceType || "WEBSITE",
+                        externalSourceName: src.externalSourceName || "External Source",
+                        externalLinks: src.externalLinks || [],
+                        createdBy: userId,
+                        isAnonymous: src.isAnonymous || data.isAnonymous || false
+                    }
+                });
+
+                await tx.claimSource.create({
+                    data: {
+                        claimId,
+                        sourceId: newSrc.id,
+                        relationship: src.relationship || "SUPPORTS"
+                    }
+                });
+
+                targetSourceIds.push(newSrc.id);
+            }
+        }
+
+        // Validate selected existing evidenceIds against ClaimEvidence
+        const existingEvidenceIdsToValidate = data.evidenceIds || [];
+        if (existingEvidenceIdsToValidate.length > 0) {
+            const validClaimEvidence = await tx.claimEvidence.findMany({
+                where: {
+                    claimId,
+                    evidenceId: { in: existingEvidenceIdsToValidate }
+                },
+                select: { evidenceId: true }
+            });
+            const validEvidenceSet = new Set(validClaimEvidence.map(e => e.evidenceId));
+            const invalidEv = existingEvidenceIdsToValidate.find(id => !validEvidenceSet.has(id));
+            if (invalidEv) {
+                const error: any = new Error(`Evidence ${invalidEv} is not associated with this claim`);
+                error.statusCode = 400;
+                throw error;
+            }
+        }
+
+        // Validate selected existing sourceIds against ClaimSource
+        const existingSourceIdsToValidate = data.sourceIds || [];
+        if (existingSourceIdsToValidate.length > 0) {
+            const validClaimSources = await tx.claimSource.findMany({
+                where: {
+                    claimId,
+                    sourceId: { in: existingSourceIdsToValidate }
+                },
+                select: { sourceId: true }
+            });
+            const validSourceSet = new Set(validClaimSources.map(s => s.sourceId));
+            const invalidSrc = existingSourceIdsToValidate.find(id => !validSourceSet.has(id));
+            if (invalidSrc) {
+                const error: any = new Error(`Source ${invalidSrc} is not associated with this claim`);
+                error.statusCode = 400;
+                throw error;
+            }
+        }
+
+        const createdUpdate = await tx.claimUpdate.create({
+            data: {
+                claimId,
+                content: data.content,
+                previousState: newState && newState !== previousState ? previousState : null,
+                newState,
+                updateType: finalUpdateType as any,
+                createdBy: userId,
+                isAnonymous: data.isAnonymous || false,
+                isDeleted: false,
+                isVerified: false,
+                evidence: {
+                    create: targetEvidenceIds.map(eId => ({ evidenceId: eId }))
+                },
+                sources: {
+                    create: targetSourceIds.map(sId => ({ sourceId: sId }))
+                }
+            },
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        userName: true,
+                        type: true,
+                        userProfile: true,
+                    }
+                },
+                evidence: {
+                    include: {
+                        evidence: {
+                            include: {
+                                medias: {
+                                    include: { media: true }
+                                }
+                            }
+                        }
+                    }
+                },
+                sources: {
+                    include: {
+                        source: true
+                    }
+                }
+            }
+        });
+
+        await tx.case.update({
+            where: { id: claim.caseId },
+            data: { lastActivityAt: new Date() }
+        });
+
+        return sanitizeAnonymousClaimUpdate(createdUpdate);
+    });
+};
+
+const getClaimUpdates = async (
+    claimId: string,
+    limit: number = 20,
+    cursor?: string
+) => {
+    const { sanitizeAnonymousClaimUpdate } = require('../../utils/privacy.utils');
+
+    const claim = await db.claim.findUnique({
+        where: { id: claimId },
+        select: { id: true, currentState: true, updatedAt: true }
+    });
+
+    if (!claim) {
+        const error: any = new Error("Claim not found");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const updates = await db.claimUpdate.findMany({
+        where: { claimId, isDeleted: false },
+        take: limit + 1,
+        cursor: cursor ? { id: cursor } : undefined,
+        skip: cursor ? 1 : 0,
+        orderBy: { createdAt: 'desc' },
+        include: {
+            author: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    userName: true,
+                    type: true,
+                    userProfile: true,
+                }
+            },
+            evidence: {
+                include: {
+                    evidence: {
+                        include: {
+                            medias: {
+                                include: { media: true }
+                            }
+                        }
+                    }
+                }
+            },
+            sources: {
+                include: {
+                    source: true
+                }
+            }
+        }
+    });
+
+    let nextCursor: string | null = null;
+    if (updates.length > limit) {
+        const nextItem = updates.pop();
+        nextCursor = nextItem?.id || null;
+    }
+
+    const totalCount = await db.claimUpdate.count({ where: { claimId, isDeleted: false } });
+
+    const sanitizedUpdates: any[] = updates.map(sanitizeAnonymousClaimUpdate);
+    const latestUpdate = sanitizedUpdates[0] || null;
+
+    return {
+        updates: sanitizedUpdates,
+        nextCursor,
+        totalCount,
+        currentState: claim.currentState || "PROPOSED",
+        lastUpdated: latestUpdate ? latestUpdate.createdAt : claim.updatedAt,
+        latestAuthor: latestUpdate ? latestUpdate.author : null,
+    };
+};
+
+/* =========================================================
+   CASE SETTINGS SERVICE
+========================================================= */
+
+const updateCaseSettings = async (
+    caseId: string,
+    settingsData: TUpdateCaseSettings,
+    userId: string
+) => {
+    const existingCase = await db.case.findUnique({
+        where: { id: caseId }
+    });
+
+    if (!existingCase) {
+        const error: any = new Error("Case not found");
+        (error as any).statusCode = 404;
+        throw error;
+    }
+
+    if (existingCase.authorId !== userId) {
+        const error: any = new Error("Unauthorized to update settings for this case");
+        (error as any).statusCode = 403;
+        throw error;
+    }
+
+    const updatedCase = await db.case.update({
+        where: { id: caseId },
+        data: {
+            ...(typeof settingsData.canUserCreateClaim === "boolean" && { canUserCreateClaim: settingsData.canUserCreateClaim }),
+            ...(typeof settingsData.canUserCreateClaimEvidence === "boolean" && { canUserCreateClaimEvidence: settingsData.canUserCreateClaimEvidence }),
+            ...(typeof settingsData.canUserCreateClaimUpdate === "boolean" && { canUserCreateClaimUpdate: settingsData.canUserCreateClaimUpdate }),
+        }
+    });
+
+    return {
+        id: updatedCase.id,
+        settings: {
+            canUserCreateClaim: updatedCase.canUserCreateClaim,
+            canUserCreateClaimEvidence: updatedCase.canUserCreateClaimEvidence,
+            canUserCreateClaimUpdate: updatedCase.canUserCreateClaimUpdate
+        }
+    };
+};
+
+/* =========================================================
    SERVICE OBJECT
 ========================================================= */
 
@@ -1337,6 +1750,10 @@ const caseService = {
     getAssessments,
     submitCaseReaction,
     recordCaseView,
+    getClaimUpdatePermissions,
+    createClaimUpdate,
+    getClaimUpdates,
+    updateCaseSettings,
 };
 
 export default caseService;

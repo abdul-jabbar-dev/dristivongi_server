@@ -93,7 +93,7 @@ const login = async (payload) => {
     const { email, password } = payload;
     const user = await prisma_1.db.user.findUnique({
         where: { email },
-        include: { userCredential: true }
+        include: { userCredential: true, userProfile: true }
     });
     if (!user || !user.userCredential) {
         throw new Error("Invalid credentials");
@@ -128,6 +128,7 @@ const login = async (payload) => {
         fullName: user.fullName,
         userName: user.userName,
         type: user.type,
+        userProfile: user.userProfile
     };
     return { user: safeUser, accessToken, refreshToken };
 };
@@ -173,6 +174,7 @@ const me = async (userId) => {
             userName: true,
             type: true,
             createdAt: true,
+            userProfile: true
         }
     });
     if (!user)

@@ -7,6 +7,8 @@ import GlobalError from "../../../error/GlobalError";
 import {
     TCreateCase,
     TCreateClaim,
+    TCreateClaimUpdate,
+    TUpdateCaseSettings,
 } from "./case.zod";
 import caseService from "./case.service";
 
@@ -361,6 +363,70 @@ const recordCaseView = async (req: Request, res: Response) => {
 };
 
 /* =========================
+   CLAIM UPDATES
+========================= */
+
+const createClaimUpdate = async (req: Request, res: Response) => {
+    try {
+        const claimId = req.params.claimId;
+        const userId = req.user.id;
+        const updateData: TCreateClaimUpdate = req.body;
+        const files = (req.files as Express.Multer.File[]) || [];
+
+        const result = await caseService.createClaimUpdate(
+            claimId,
+            updateData,
+            userId,
+            files
+        );
+
+        Res.send(res, result, "Claim update created successfully", 201);
+    } catch (error) {
+        const { deleteMulterFiles } = await import('../media/media.utils');
+        await deleteMulterFiles(req.files || []);
+        GlobalError(res, error);
+    }
+};
+
+const getClaimUpdates = async (req: Request, res: Response) => {
+    try {
+        const claimId = req.params.claimId;
+        const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+        const cursor = req.query.cursor ? (req.query.cursor as string) : undefined;
+
+        const result = await caseService.getClaimUpdates(claimId, limit, cursor);
+        Res.send(res, result, "Claim updates retrieved successfully", 200);
+    } catch (error) {
+        GlobalError(res, error);
+    }
+};
+
+const getClaimUpdatePermissions = async (req: Request, res: Response) => {
+    try {
+        const claimId = req.params.claimId;
+        const userId = req.user?.id;
+
+        const result = await caseService.getClaimUpdatePermissions(claimId, userId);
+        Res.send(res, result, "Claim update permissions retrieved successfully", 200);
+    } catch (error) {
+        GlobalError(res, error);
+    }
+};
+
+const updateCaseSettings = async (req: Request, res: Response) => {
+    try {
+        const caseId = req.params.caseId;
+        const userId = req.user.id;
+        const settingsData: TUpdateCaseSettings = req.body;
+
+        const result = await caseService.updateCaseSettings(caseId, settingsData, userId);
+        Res.send(res, result, "Case settings updated successfully", 200);
+    } catch (error) {
+        GlobalError(res, error);
+    }
+};
+
+/* =========================
    CONTROLLER OBJECT
 ========================= */
 
@@ -375,6 +441,10 @@ const caseController = {
     getAssessments,
     submitCaseReaction,
     recordCaseView,
+    createClaimUpdate,
+    getClaimUpdates,
+    getClaimUpdatePermissions,
+    updateCaseSettings,
 };
 
 export default caseController;

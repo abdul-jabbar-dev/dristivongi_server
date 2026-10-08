@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -6,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const prisma_1 = require("../../../lib/prisma");
 const media_service_1 = __importDefault(require("../media/media.service"));
 const createOpinion = async (payload, authorId, files) => {
-    const { targetType, targetId, content, value, parentId, sources } = payload;
+    const { targetType, targetId, content, value, parentId, sources, isAnonymous } = payload;
     if (!content?.trim() && (!files || files.length === 0) && (!sources || sources.length === 0)) {
         throw new Error("Comment must contain either text, files, or links");
     }
@@ -44,7 +77,8 @@ const createOpinion = async (payload, authorId, files) => {
                     externalSourceType: src.externalSourceType,
                     externalSourceName: src.externalSourceName,
                     externalLinks: src.externalLinks || [],
-                    createdBy: authorId
+                    createdBy: authorId,
+                    isAnonymous: isAnonymous || false
                 }
             });
             sourceIds.push(newSource.id);
@@ -59,7 +93,8 @@ const createOpinion = async (payload, authorId, files) => {
                 targetType,
                 targetId,
                 authorId,
-                parentId
+                parentId,
+                isAnonymous: isAnonymous || false
             }
         });
         // Process media files
@@ -112,12 +147,23 @@ const getOpinions = async (targetType, targetId) => {
     });
 };
 const deleteOpinion = async (id, authorId) => {
-    const opinion = await prisma_1.db.opinion.findUnique({ where: { id } });
+    const opinion = await prisma_1.db.opinion.findUnique({
+        where: { id },
+        include: { medias: { include: { media: true } } }
+    });
     if (!opinion)
         throw new Error("Opinion not found!");
     if (opinion.authorId !== authorId)
         throw new Error("Unauthorized to delete this opinion!");
+    const mediaIdsToCleanup = opinion.medias.map((m) => m.mediaId);
     await prisma_1.db.opinion.delete({ where: { id } });
+    // Safely delete unreferenced media
+    if (mediaIdsToCleanup.length > 0) {
+        const { safeDeleteMedia } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        for (const mediaId of mediaIdsToCleanup) {
+            await safeDeleteMedia(mediaId, prisma_1.db);
+        }
+    }
     return true;
 };
 const opinionService = {

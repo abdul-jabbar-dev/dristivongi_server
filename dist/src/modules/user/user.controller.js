@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -20,7 +53,6 @@ const getAllUsers = async (req, res) => {
 };
 const register = async (req, res) => {
     try {
-        console.log(req.body);
         const user = req.body;
         const users = await user_service_1.default.register(user);
         response_1.default.send(res, users, 'User created successfully', 201);
@@ -120,6 +152,11 @@ const updateProfile = async (req, res) => {
         const userId = req.user.id;
         const payload = req.body;
         const files = req.files || [];
+        // 1. Fetch current profile to know what to delete
+        const { db } = require("../../../lib/prisma");
+        const currentProfile = await db.userProfile.findUnique({ where: { userId } });
+        let oldProfilePicture = currentProfile?.profilePicture;
+        let oldCoverPicture = currentProfile?.coverPicture;
         const profilePicture = files.find(f => f.fieldname === 'profilePicture');
         if (profilePicture) {
             let loc = profilePicture.location || (profilePicture.path ? `/uploads/${profilePicture.filename}` : undefined);
@@ -137,9 +174,20 @@ const updateProfile = async (req, res) => {
             payload.coverPicture = loc;
         }
         const result = await user_service_1.default.updateProfile(userId, payload);
+        // Success: safely delete old images if replaced
+        const { deleteFileFromStorage } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        if (profilePicture && oldProfilePicture && oldProfilePicture !== payload.profilePicture) {
+            await deleteFileFromStorage(oldProfilePicture);
+        }
+        if (coverPicture && oldCoverPicture && oldCoverPicture !== payload.coverPicture) {
+            await deleteFileFromStorage(oldCoverPicture);
+        }
         response_1.default.send(res, result, "Profile updated successfully");
     }
     catch (error) {
+        // Error: clean up the newly uploaded files so they don't orphan
+        const { deleteMulterFiles } = await Promise.resolve().then(() => __importStar(require('../media/media.utils')));
+        await deleteMulterFiles(req.files || []);
         (0, GlobalError_1.default)(res, error, error.message, 400);
     }
 };

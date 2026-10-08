@@ -57,7 +57,8 @@ const login = async (user) => {
     try {
         const result = await prisma_1.db.$transaction(async (tx) => {
             const isUserExits = await tx.user.findFirst({
-                where: { email: user.email }
+                where: { email: user.email },
+                include: { userProfile: true }
             });
             if (!isUserExits) {
                 throw new Error("User not found");
@@ -94,8 +95,10 @@ const login = async (user) => {
             return {
                 AccessToken, RefreshToken, user: {
                     id: String(isUserExits.id),
+                    userName: String(isUserExits.userName || ''),
                     email: String(isUserExits.email),
-                    fullName: String(isUserExits.fullName)
+                    fullName: String(isUserExits.fullName),
+                    userProfile: isUserExits.userProfile
                 }
             };
         });
@@ -140,6 +143,11 @@ const getUserProfile = async (username) => {
                         cases: true,
                         claims: true,
                         evidence: true
+                    }
+                },
+                organizationMemberships: {
+                    include: {
+                        organization: true
                     }
                 }
             }

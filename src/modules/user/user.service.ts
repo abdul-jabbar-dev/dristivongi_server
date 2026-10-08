@@ -161,6 +161,11 @@ const getUserProfile = async (username: string) => {
                         claims: true,
                         evidence: true
                     }
+                },
+                organizationMemberships: {
+                    include: {
+                        organization: true
+                    }
                 }
             }
         });

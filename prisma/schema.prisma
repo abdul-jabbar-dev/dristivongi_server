@@ -7,34 +7,42 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  fullName            String
-  email               String               @unique
-  phoneNumber         String?              @unique
-  userName            String?              @unique
-  type                String               @default("user")
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  assessments         Assessment[]
-  cases               Case[]
-  claims              Claim[]
-  discussions         Discussion[]
-  evidence            Evidence[]
-  opinions            Opinion[]
-  sessions            Session[]
-  sources             Source[]
-  evidenceValidations EvidenceValidation[]
-  userAddress         UserAddress?
-  userCredential      UserCredential?
-  userProfile         UserProfile?
-  reportsFiled        Report[]             @relation("ReportedBy")
-  reportsReviewed     Report[]             @relation("ReviewedBy")
-  caseReactions       CaseReaction[]
-  caseViews           CaseView[]
+  id                      String                   @id @default(cuid())
+  fullName                String
+  email                   String                   @unique
+  phoneNumber             String?                  @unique
+  userName                String?                  @unique
+  type                    String                   @default("user")
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  assessments             Assessment[]
+  cases                   Case[]
+  claims                  Claim[]
+  discussions             Discussion[]
+  evidence                Evidence[]
+  opinions                Opinion[]
+  sessions                Session[]
+  sources                 Source[]
+  evidenceValidations     EvidenceValidation[]
+  userAddress             UserAddress?
+  userCredential          UserCredential?
+  userProfile             UserProfile?
+  reportsFiled            Report[]                 @relation("ReportedBy")
+  reportsReviewed         Report[]                 @relation("ReviewedBy")
+  caseReactions           CaseReaction[]
+  caseViews               CaseView[]
   organizationsCreated    Organization[]           @relation("OrganizationCreator")
   organizationMemberships OrganizationMembership[]
   organizationInvitations OrganizationInvitation[]
+  userJoinRequests        OrganizationJoinRequest[] @relation("UserJoinRequests")
+  reviewedJoinRequests    OrganizationJoinRequest[] @relation("ReviewerJoinRequests")
   officialResponses       OfficialResponse[]
+  caseFollows             CaseFollow[]
+  caseBookmarks           CaseBookmark[]
+  organizationFollows     OrganizationFollow[]
+  feedbackSignals         UserFeedbackSignal[]
+  claimUpdates            ClaimUpdate[]
+  caseUpdates             CaseUpdate[]
 
   @@map("users")
 }
@@ -96,28 +104,40 @@ model UserCredential {
 }
 
 model Case {
-  isAnonymous   Boolean        @default(false)
-  id            String         @id @default(cuid())
-  title         String
-  titleHtml     String         @default("") @db.Text
-  location      String
-  authorId      String
-  caseStatus    String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  medias        CaseMedia[]
-  author        User           @relation(fields: [authorId], references: [id])
-  claims        Claim[]
-  discussions   Discussion[]
-  evidence      CaseEvidence[]
-  sources       CaseSource[]
-  tags          CaseTag[]
-  caseReactions CaseReaction[]
-  caseViews     CaseView[]
-  officialResponses OfficialResponse[]
+  isAnonymous                Boolean            @default(false)
+  canUserCreateClaim         Boolean            @default(true)
+  canUserCreateClaimEvidence Boolean            @default(true)
+  canUserCreateClaimUpdate   Boolean            @default(true)
+  id                         String             @id @default(cuid())
+  title                      String
+  titleHtml                  String             @default("") @db.Text
+  location                   String
+  authorId                   String
+  caseStatus                 String
+  visibility                 String             @default("PUBLIC")
+  organizationId             String?
+  lastActivityAt             DateTime           @default(now())
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  medias                     CaseMedia[]
+  author                     User               @relation(fields: [authorId], references: [id])
+  organization               Organization?      @relation("OrganizationCases", fields: [organizationId], references: [id], onDelete: SetNull)
+  claims                     Claim[]
+  discussions                Discussion[]
+  evidence                   CaseEvidence[]
+  sources                    CaseSource[]
+  tags                       CaseTag[]
+  caseReactions              CaseReaction[]
+  caseViews                  CaseView[]
+  officialResponses          OfficialResponse[]
+  follows                    CaseFollow[]
+  bookmarks                  CaseBookmark[]
+  updates                    CaseUpdate[]
 
   @@index([authorId])
+  @@index([organizationId])
   @@index([createdAt])
+  @@index([lastActivityAt])
   @@map("cases")
 }
 
@@ -137,9 +157,9 @@ model CaseView {
 }
 
 model Claim {
-  isAnonymous   Boolean        @default(false)
-  id    String @id @default(cuid())
-  title String
+  isAnonymous Boolean @default(false)
+  id          String  @id @default(cuid())
+  title       String
 
   claimType   String?
   caseId      String
@@ -147,10 +167,12 @@ model Claim {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   claimStatus ClaimStatus     @default(SHOW)
+  currentState ClaimState?    @default(PROPOSED)
   assessments Assessment[]
   evidence    ClaimEvidence[]
   medias      ClaimMedia[]
   sources     ClaimSource[]
+  updates     ClaimUpdate[]
   case        Case            @relation(fields: [caseId], references: [id])
   creator     User            @relation(fields: [createdBy], references: [id])
   discussions Discussion[]
@@ -172,7 +194,7 @@ model ClaimMedia {
 }
 
 model Evidence {
-  isAnonymous   Boolean        @default(false)
+  isAnonymous Boolean              @default(false)
   id          String               @id @default(cuid())
   title       String
   type        String
@@ -184,6 +206,8 @@ model Evidence {
   submitter   User                 @relation(fields: [submittedBy], references: [id])
   medias      EvidenceMedia[]
   validations EvidenceValidation[]
+  claimUpdates ClaimUpdateEvidence[]
+  caseUpdates  CaseUpdateEvidence[]
 
   @@index([submittedBy])
   @@map("evidence")
@@ -203,15 +227,15 @@ model ClaimEvidence {
 }
 
 model Media {
-  id             String          @id @default(cuid())
-  url            String
-  type           String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  caseMedias     CaseMedia[]
-  claimMedias    ClaimMedia[]
-  evidenceMedias EvidenceMedia[]
-  opinionMedias  OpinionMedia[]
+  id                    String                 @id @default(cuid())
+  url                   String
+  type                  String
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  caseMedias            CaseMedia[]
+  claimMedias           ClaimMedia[]
+  evidenceMedias        EvidenceMedia[]
+  opinionMedias         OpinionMedia[]
   organizationDocuments OrganizationDocument[]
 
   @@map("medias")
@@ -241,7 +265,7 @@ model EvidenceMedia {
 }
 
 model Source {
-  isAnonymous   Boolean        @default(false)
+  isAnonymous        Boolean         @default(false)
   id                 String          @id @default(cuid())
   title              String
   sourceLocation     String
@@ -255,6 +279,8 @@ model Source {
   claims             ClaimSource[]
   cases              CaseSource[]
   opinions           OpinionSource[]
+  claimUpdates       ClaimUpdateSource[]
+  caseUpdates        CaseUpdateSource[]
   creator            User            @relation(fields: [createdBy], references: [id])
 
   @@index([createdBy])
@@ -318,20 +344,20 @@ model Assessment {
 }
 
 model Discussion {
-  isAnonymous   Boolean        @default(false)
-  id        String       @id @default(cuid())
-  content   String
-  userId    String
-  parentId  String?
-  caseId    String
-  claimId   String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  case      Case         @relation(fields: [caseId], references: [id])
-  claim     Claim?       @relation(fields: [claimId], references: [id])
-  parent    Discussion?  @relation("DiscussionReplies", fields: [parentId], references: [id])
-  replies   Discussion[] @relation("DiscussionReplies")
-  user      User         @relation(fields: [userId], references: [id])
+  isAnonymous Boolean      @default(false)
+  id          String       @id @default(cuid())
+  content     String
+  userId      String
+  parentId    String?
+  caseId      String
+  claimId     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  case        Case         @relation(fields: [caseId], references: [id])
+  claim       Claim?       @relation(fields: [claimId], references: [id])
+  parent      Discussion?  @relation("DiscussionReplies", fields: [parentId], references: [id])
+  replies     Discussion[] @relation("DiscussionReplies")
+  user        User         @relation(fields: [userId], references: [id])
 
   @@index([caseId])
   @@index([claimId])
@@ -341,21 +367,21 @@ model Discussion {
 }
 
 model Opinion {
-  isAnonymous   Boolean        @default(false)
-  id         String          @id @default(cuid())
-  content    String
-  value      String?
-  targetType TargetType
-  targetId   String
-  authorId   String
-  parentId   String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  medias     OpinionMedia[]
-  sources    OpinionSource[]
-  author     User            @relation(fields: [authorId], references: [id])
-  parent     Opinion?        @relation("OpinionReplies", fields: [parentId], references: [id])
-  replies    Opinion[]       @relation("OpinionReplies")
+  isAnonymous Boolean         @default(false)
+  id          String          @id @default(cuid())
+  content     String
+  value       String?
+  targetType  TargetType
+  targetId    String
+  authorId    String
+  parentId    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  medias      OpinionMedia[]
+  sources     OpinionSource[]
+  author      User            @relation(fields: [authorId], references: [id])
+  parent      Opinion?        @relation("OpinionReplies", fields: [parentId], references: [id])
+  replies     Opinion[]       @relation("OpinionReplies")
 
   @@index([targetType, targetId])
   @@index([authorId])
@@ -410,7 +436,7 @@ enum TargetType {
 }
 
 model Report {
-  isAnonymous   Boolean        @default(false)
+  isAnonymous Boolean          @default(false)
   id          String           @id @default(cuid())
   targetType  TargetType
   targetId    String
@@ -549,6 +575,7 @@ enum OrganizationStatus {
 enum OrganizationRole {
   OWNER
   ADMIN
+  MODERATOR
   REPRESENTATIVE
   MEMBER
 }
@@ -562,61 +589,80 @@ enum InvitationStatus {
 }
 
 model Organization {
-  id                 String                         @id @default(cuid())
-  name               String
-  slug               String                         @unique
-  description        String?                        @db.Text
-  organizationType   String
-  
+  id               String  @id @default(cuid())
+  name             String
+  slug             String  @unique
+  description      String? @db.Text
+  organizationType String
+
   // The Three Separated Concepts
   visibility         OrganizationVisibility         @default(PUBLIC)
   verificationStatus OrganizationVerificationStatus @default(UNVERIFIED)
   status             OrganizationStatus
-  
+
   // Media
-  logoUrl            String?
-  coverUrl           String?
+  logoUrl  String?
+  coverUrl String?
 
   // Contact / Location
-  website            String?
-  email              String?
-  phone              String?
-  address            String?
+  website  String?
+  email    String?
+  phone    String?
+  address  String?
+  location String?
+
+  // Categorization
+  category         String?
+  categoryKeywords String[]
 
   // Moderation / Verification Metadata
-  rejectionReason    String?
-  suspensionReason   String?
-  verifiedAt         DateTime?
-  verifiedBy         String?
-  suspendedAt        DateTime?
-  suspendedBy        String?
+  rejectionReason  String?
+  suspensionReason String?
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  suspendedAt      DateTime?
+  suspendedBy      String?
 
   // Auditing
-  createdBy          String
-  createdAt          DateTime                       @default(now())
-  updatedAt          DateTime                       @updatedAt
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relationships
-  creator            User                           @relation("OrganizationCreator", fields: [createdBy], references: [id])
-  memberships        OrganizationMembership[]
-  invitations        OrganizationInvitation[]
-  officialResponses  OfficialResponse[]
-  verificationDocs   OrganizationDocument[]
+  creator           User                     @relation("OrganizationCreator", fields: [createdBy], references: [id])
+  memberships       OrganizationMembership[]
+  invitations       OrganizationInvitation[]
+  joinRequests      OrganizationJoinRequest[]
+  officialResponses OfficialResponse[]
+  verificationDocs  OrganizationDocument[]
+  cases             Case[]                   @relation("OrganizationCases")
+  followers         OrganizationFollow[]
 
   @@map("organizations")
 }
 
-model OrganizationMembership {
-  id             String           @id @default(cuid())
-  organizationId String
-  userId         String
-  role           OrganizationRole @default(MEMBER)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  invitedBy      String?
+enum MembershipModerationStatus {
+  ACTIVE
+  RESTRICTED
+  SUSPENDED
+  BANNED
+}
 
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+model OrganizationMembership {
+  id               String                     @id @default(cuid())
+  organizationId   String
+  userId           String
+  role             OrganizationRole           @default(MEMBER)
+  moderationStatus MembershipModerationStatus @default(ACTIVE)
+  moderatedAt      DateTime?
+  moderatedBy      String?
+  moderationReason String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  invitedBy        String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -634,11 +680,38 @@ model OrganizationInvitation {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inviter        User             @relation(fields: [invitedBy], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User         @relation(fields: [invitedBy], references: [id])
 
   @@index([email])
   @@map("organization_invitations")
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model OrganizationJoinRequest {
+  id              String            @id @default(cuid())
+  organizationId  String
+  userId          String
+  status          JoinRequestStatus @default(PENDING)
+  message         String?           @db.Text
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  rejectionReason String?           @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer     User?        @relation("ReviewerJoinRequests", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@map("organization_join_requests")
 }
 
 model OrganizationDocument {
@@ -647,26 +720,213 @@ model OrganizationDocument {
   documentType   String
   createdAt      DateTime @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  media          Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  media        Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 
   @@id([organizationId, mediaId])
   @@map("organization_documents")
 }
 
 model OfficialResponse {
-  id               String       @id @default(cuid())
+  id               String   @id @default(cuid())
   organizationId   String
   caseId           String
   representativeId String
-  content          String       @db.Text
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  content          String   @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  case             Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  representative   User         @relation(fields: [representativeId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  case           Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  representative User         @relation(fields: [representativeId], references: [id])
 
   @@index([caseId])
   @@map("official_responses")
 }
+
+model CaseFollow {
+  id        String   @id @default(cuid())
+  caseId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([userId])
+  @@map("case_follows")
+}
+
+model CaseBookmark {
+  id        String   @id @default(cuid())
+  caseId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, userId])
+  @@index([userId])
+  @@map("case_bookmarks")
+}
+
+model OrganizationFollow {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_follows")
+}
+
+model UserFeedbackSignal {
+  id         String   @id @default(cuid())
+  userId     String
+  targetType String   // "CASE" | "ORGANIZATION"
+  targetId   String
+  action     String   // "HIDE" | "NOT_INTERESTED" | "MUTE"
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([userId])
+  @@map("user_feedback_signals")
+}
+
+// --- CLAIM UPDATES & TIMELINE SYSTEM ---
+
+enum ClaimState {
+  PROPOSED
+  SUPPORTED
+  PARTIALLY_SUPPORTED
+  INSUFFICIENT_EVIDENCE
+  CHALLENGED
+  CONTRADICTED
+  DISPUTED
+  WITHDRAWN
+  SUPERSEDED
+}
+
+enum ClaimUpdateType {
+  GENERAL_UPDATE
+  INFORMATION_ADDED
+  EVIDENCE_ADDED
+  SOURCE_ADDED
+  STATE_CHANGED
+  CLAIM_REVISED
+  CLAIM_CLARIFIED
+  CHALLENGED
+  WITHDRAWN
+  SUPERSEDED
+}
+
+model ClaimUpdate {
+  id            String          @id @default(cuid())
+  claimId       String
+  content       String          @db.Text
+  previousState ClaimState?
+  newState      ClaimState?
+  updateType    ClaimUpdateType @default(GENERAL_UPDATE)
+  createdBy     String
+  isAnonymous   Boolean         @default(false)
+  isDeleted     Boolean         @default(false)
+  isVerified    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  claim         Claim                 @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  author        User                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  evidence      ClaimUpdateEvidence[]
+  sources       ClaimUpdateSource[]
+
+  @@index([claimId, createdAt])
+  @@index([createdBy])
+  @@map("claim_updates")
+}
+
+model ClaimUpdateEvidence {
+  updateId   String
+  evidenceId String
+  createdAt  DateTime @default(now())
+
+  update   ClaimUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  evidence Evidence    @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@id([updateId, evidenceId])
+  @@index([evidenceId])
+  @@map("claim_update_evidence")
+}
+
+model ClaimUpdateSource {
+  updateId  String
+  sourceId  String
+  createdAt DateTime @default(now())
+
+  update ClaimUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  source Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([updateId, sourceId])
+  @@index([sourceId])
+  @@map("claim_update_sources")
+}
+
+model CaseUpdate {
+  id             String          @id @default(cuid())
+  caseId         String
+  content        String          @db.Text
+  previousStatus String?
+  newStatus      String?
+  updateType     ClaimUpdateType @default(GENERAL_UPDATE)
+  createdBy      String
+  isAnonymous    Boolean         @default(false)
+  isDeleted      Boolean         @default(false)
+  isVerified     Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  case     Case                 @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author   User                 @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  evidence CaseUpdateEvidence[]
+  sources  CaseUpdateSource[]
+
+  @@index([caseId, createdAt])
+  @@index([createdBy])
+  @@map("case_updates")
+}
+
+model CaseUpdateEvidence {
+  updateId   String
+  evidenceId String
+  createdAt  DateTime @default(now())
+
+  update   CaseUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  evidence Evidence   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@id([updateId, evidenceId])
+  @@index([evidenceId])
+  @@map("case_update_evidence")
+}
+
+model CaseUpdateSource {
+  updateId  String
+  sourceId  String
+  createdAt DateTime @default(now())
+
+  update CaseUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  source Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@id([updateId, sourceId])
+  @@index([sourceId])
+  @@map("case_update_sources")
+}
+
+
+

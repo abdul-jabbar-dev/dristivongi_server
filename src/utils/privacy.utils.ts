@@ -1,6 +1,9 @@
 export const ANONYMOUS_AUTHOR_PAYLOAD = {
+  id: "anonymous",
   isAnonymous: true,
   displayName: "Anonymous Contributor",
+  fullName: "Anonymous Contributor",
+  userName: null,
   profilePicture: null
 };
 
@@ -129,3 +132,45 @@ export const sanitizeAnonymousSource = (sourceItem: any) => {
 
     return sanitized;
 };
+
+export const sanitizeAnonymousClaimUpdate = (updateItem: any) => {
+    if (!updateItem) return updateItem;
+
+    const isAnonymous = updateItem.isAnonymous === true;
+
+    const sanitized = {
+        ...updateItem,
+        author: toPublicAuthorDTO(updateItem.author, isAnonymous),
+    };
+
+    if (isAnonymous) {
+        delete sanitized.createdBy;
+    }
+
+    if (sanitized.evidence && Array.isArray(sanitized.evidence)) {
+        sanitized.evidence = sanitized.evidence.map((cue: any) => {
+            if (cue.evidence) {
+                return {
+                    ...cue,
+                    evidence: sanitizeAnonymousEvidence(cue.evidence)
+                };
+            }
+            return cue;
+        });
+    }
+
+    if (sanitized.sources && Array.isArray(sanitized.sources)) {
+        sanitized.sources = sanitized.sources.map((cus: any) => {
+            if (cus.source) {
+                return {
+                    ...cus,
+                    source: sanitizeAnonymousSource(cus.source)
+                };
+            }
+            return cus;
+        });
+    }
+
+    return sanitized;
+};
+

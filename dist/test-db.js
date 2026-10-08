@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const prisma_1 = require("./src/lib/prisma");
+const prisma_1 = require("./lib/prisma");
 async function main() {
     const users = await prisma_1.db.user.findMany();
     console.log("Users:", users.length);

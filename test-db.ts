@@ -1,4 +1,4 @@
-import { db } from './src/lib/prisma';
+import { db } from './lib/prisma';
 async function main() {
   const users = await db.user.findMany();
   console.log("Users:", users.length);

@@ -14,6 +14,7 @@ exports.createOpinionSchema = zod_1.z.object({
         targetId: zod_1.z.string().min(1, "Target ID is required"),
         content: zod_1.z.string().optional().default(""),
         value: zod_1.z.string().optional(),
+        isAnonymous: zod_1.z.boolean().optional(),
         parentId: zod_1.z.string().optional(),
         sources: zod_1.z.array(zod_1.z.object({
             title: zod_1.z.string(),

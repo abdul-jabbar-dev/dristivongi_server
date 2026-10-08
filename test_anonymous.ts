@@ -65,10 +65,10 @@ async function runTests() {
 
         // 5. Test Feed
         const feed = await caseService.getNewsFeed(undefined, undefined, undefined, "recent", 1, 10);
-        const feedCase = feed.data.find((c: any) => c.id === newCase.id);
+        const feedCase = feed.items.find((i: any) => i.case.id === newCase.id)?.case;
         
         if (feedCase) {
-            if (feedCase.author.displayName !== "Anonymous Contributor") {
+            if (feedCase.author.fullName !== "Anonymous Contributor") {
                 console.error("❌ FAILED: Feed does not anonymize author");
                 process.exit(1);
             }

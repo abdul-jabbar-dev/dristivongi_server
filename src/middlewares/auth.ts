@@ -50,4 +50,27 @@ const auth = async (req: Request, res: Response, next: NextFunction) => {
     }
 };
 
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization;
+        if (token && token.startsWith("Bearer ")) {
+            const accessToken = token.split(" ")[1];
+            if (accessToken) {
+                try {
+                    const decoded = jwtService.verifyToken(accessToken) as TUserToken;
+                    if (decoded && decoded.type === "access") {
+                        const user = await db.user.findUnique({ where: { id: decoded.id } });
+                        if (user) {
+                            req.user = decoded;
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+        next();
+    } catch (error) {
+        next();
+    }
+};
+
 export default auth;

@@ -11,6 +11,9 @@ const opinion_route_1 = __importDefault(require("../src/modules/opinion/opinion.
 const tag_route_1 = require("../src/modules/tag/tag.route");
 const media_route_1 = __importDefault(require("../src/modules/media/media.route"));
 const evidence_route_1 = __importDefault(require("../src/modules/evidence/evidence.route"));
+const organization_route_1 = __importDefault(require("../src/modules/organization/organization.route"));
+const feed_route_1 = __importDefault(require("../src/modules/feed/feed.route"));
+const search_route_1 = __importDefault(require("../src/modules/search/search.route"));
 const apiRoutes = (0, express_1.Router)();
 apiRoutes.use('/user', user_route_1.default);
 apiRoutes.use('/case', case_route_1.default);
@@ -19,4 +22,7 @@ apiRoutes.use('/opinions', opinion_route_1.default);
 apiRoutes.use('/tags', tag_route_1.tagRoutes);
 apiRoutes.use('/media', media_route_1.default);
 apiRoutes.use('/evidence', evidence_route_1.default);
+apiRoutes.use('/organizations', organization_route_1.default);
+apiRoutes.use('/feed', feed_route_1.default);
+apiRoutes.use('/search', search_route_1.default);
 exports.default = apiRoutes;

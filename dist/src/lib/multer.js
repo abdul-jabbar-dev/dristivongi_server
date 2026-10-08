@@ -48,9 +48,26 @@ const diskStorage = multer_1.default.diskStorage({
     }
 });
 const storage = config_1.default.SUPABASE_S3_ACCESS_KEY_ID ? s3Storage : diskStorage;
+const SUPPORTED_IMAGE_FORMATS = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+const fileFilter = (req, file, cb) => {
+    // If the file is an image, ensure it's a supported format
+    if (file.mimetype.startsWith('image/')) {
+        if (SUPPORTED_IMAGE_FORMATS.includes(file.mimetype)) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error(`Unsupported image format. Received: ${file.mimetype}`));
+        }
+    }
+    else {
+        // Accept other file types (videos, documents)
+        cb(null, true);
+    }
+};
 // Configure Multer with appropriate storage, size limits, and basic file filtering
 exports.upload = (0, multer_1.default)({
     storage: storage,
+    fileFilter,
     limits: {
         fileSize: 10 * 1024 * 1024, // Limit to 10MB per file to optimize performance
     }

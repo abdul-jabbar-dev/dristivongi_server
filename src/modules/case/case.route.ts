@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { upload } from "../../lib/multer";
-import auth from "../../middlewares/auth";
+import auth, { optionalAuth } from "../../middlewares/auth";
 import parseFormDataJson from "../../middlewares/parseFormDataJson";
 import validateRequest from "../../middlewares/validateRequest";
 import caseController from "./case.controller";
@@ -45,6 +45,13 @@ caseRoute.get(
 caseRoute.post(
     "/case_view/:id",
     caseController.recordCaseView
+);
+
+caseRoute.patch(
+    "/:caseId/settings",
+    auth,
+    validateRequest(caseZod.updateCaseSettingsSchema),
+    caseController.updateCaseSettings
 );
 
 
@@ -120,6 +127,30 @@ caseRoute.post(
     auth,
     validateRequest(caseZod.submitCaseReactionSchema),
     caseController.submitCaseReaction
+);
+
+/* =========================
+   CLAIM UPDATES
+========================= */
+
+caseRoute.get(
+    "/claims/:claimId/updates",
+    caseController.getClaimUpdates
+);
+
+caseRoute.get(
+    "/claims/:claimId/updates/permissions",
+    optionalAuth,
+    caseController.getClaimUpdatePermissions
+);
+
+caseRoute.post(
+    "/claims/:claimId/updates",
+    auth,
+    upload.any(),
+    parseFormDataJson,
+    validateRequest(caseZod.createClaimUpdateSchema),
+    caseController.createClaimUpdate
 );
 
 export default caseRoute;
